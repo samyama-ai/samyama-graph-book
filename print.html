@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2372a968.js";
+            window.path_to_searchindex_js = "searchindex-30301058.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c823b1bb.js"></script>
+        <script src="toc-588fbf83.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -472,6 +472,29 @@ scores = db.algo.page_rank(
 </code></pre>
 <p>This architecture allows Samyama to replace dedicated graph analytics frameworks like NetworkX (which is slow) or GraphFrames (which requires Spark), providing a single engine for storage and analysis.</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="predictive-power-gnns"><a class="header" href="#predictive-power-gnns">Predictive Power (GNNs)</a></h1>
+<p>While traditional graph algorithms like PageRank tell you about the <em>importance</em> of a node, <strong>Graph Neural Networks (GNNs)</strong> allow the database to make <em>predictions</em> about the future.</p>
+<p>Samyama’s philosophy on GNNs is clear: <strong>We focus on Inference, not Training.</strong></p>
+<h2 id="the-problem-data-gravity"><a class="header" href="#the-problem-data-gravity">The Problem: Data Gravity</a></h2>
+<p>Training a GNN model (using frameworks like PyTorch Geometric or DGL) requires massive compute power and specialized hardware. However, once a model is trained, moving the entire graph to a Python environment every time you need a prediction is slow and expensive. This is “Data Gravity.”</p>
+<h2 id="the-solution-in-database-inference"><a class="header" href="#the-solution-in-database-inference">The Solution: In-Database Inference</a></h2>
+<p>Samyama implements an inference engine based on <strong>ONNX Runtime</strong> (<code>ort</code>).</p>
+<h3 id="how-it-works"><a class="header" href="#how-it-works">How it works:</a></h3>
+<ol>
+<li><strong>Export</strong>: You train your GNN in Python (where the data science ecosystem is best) and export it to the standard <strong>ONNX</strong> format.</li>
+<li><strong>Upload</strong>: You upload the model to Samyama.</li>
+<li><strong>Execute</strong>: You run predictions directly in your Cypher queries.</li>
+</ol>
+<pre><code class="language-cypher">// Predict the fraud risk for a person based on their connections
+CALL algo.gnn.predict('fraud_model_v1', 'Person') 
+YIELD node, score
+SET node.fraud_score = score
+</code></pre>
+<h2 id="graphsage-aggregators"><a class="header" href="#graphsage-aggregators">GraphSAGE Aggregators</a></h2>
+<p>For users who want “Zero-Config” intelligence, we have implemented native <strong>GraphSAGE-style Aggregators</strong>.</p>
+<p>Instead of an external model, these aggregators leverage the existing <strong>Vector Search (HNSW)</strong> infrastructure. They compute a new node embedding by aggregating the vectors of its neighbors (mean, max, or LSTM pooling).</p>
+<p>This allows the database to act as a <strong>Dynamic Feature Store</strong>, where embeddings are updated in real-time as the graph evolves, providing a predictive layer that most graph databases lack.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="distributed-consensus--sharding"><a class="header" href="#distributed-consensus--sharding">Distributed Consensus &amp; Sharding</a></h1>
 <p>A single node can only go so far. To scale beyond a single machine’s memory and CPU, Samyama employs a distributed architecture built on the Raft consensus algorithm.</p>
 <h2 id="consistency-via-raft"><a class="header" href="#consistency-via-raft">Consistency via Raft</a></h2>
@@ -543,6 +566,30 @@ RETURN node.summary, score
 ORDER BY score DESC LIMIT 5
 </code></pre>
 <p>This “Pre-filtering” or “Post-filtering” happens inside the engine, enabling highly efficient Retrieval-Augmented Generation workflows for LLMs.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="agentic-enrichment"><a class="header" href="#agentic-enrichment">Agentic Enrichment</a></h1>
+<p>Traditional databases are passive. They store what you give them. If you ask a question and the data isn’t there, you get an empty result.</p>
+<p>Samyama introduces <strong>Agentic Enrichment</strong>—a paradigm shift where the database becomes an active participant in building its own knowledge.</p>
+<h2 id="from-rag-to-gak"><a class="header" href="#from-rag-to-gak">From RAG to GAK</a></h2>
+<p>We are all familiar with <strong>Retrieval-Augmented Generation (RAG)</strong>: using a database to help an LLM.
+Samyama implements <strong>Generation-Augmented Knowledge (GAK)</strong>: using an LLM to help build the database.</p>
+<h2 id="the-autonomous-enrichment-loop"><a class="header" href="#the-autonomous-enrichment-loop">The Autonomous Enrichment Loop</a></h2>
+<p>Samyama can be configured with <strong>Enrichment Policies</strong>. When a new node is created or a specific property is queried, an autonomous agent can “wake up” to fill in the gaps.</p>
+<h3 id="example-the-research-assistant"><a class="header" href="#example-the-research-assistant">Example: The Research Assistant</a></h3>
+<p>Imagine you are building a medical knowledge graph. You create a node for a new drug, <code>Semaglutide</code>.</p>
+<p><strong>The Passive Way</strong>: You manually search PubMed, find papers, and insert them.
+<strong>The Samyama Way</strong>:</p>
+<ol>
+<li>You create the <code>Drug</code> node.</li>
+<li>An <strong>Event Trigger</strong> fires an Enrichment Agent.</li>
+<li>The Agent uses a <strong>Web Search Tool</strong> to find recent clinical trials.</li>
+<li>The Agent parses the results into JSON.</li>
+<li>The database automatically executes <code>CREATE</code> commands to link the new papers to the <code>Drug</code> node.</li>
+</ol>
+<h2 id="just-in-time-jit-knowledge-graphs"><a class="header" href="#just-in-time-jit-knowledge-graphs">Just-In-Time (JIT) Knowledge Graphs</a></h2>
+<p>This enables what we call a <strong>JIT Knowledge Graph</strong>. The graph doesn’t need to be complete on day one. It grows and “heals” itself based on user interaction.</p>
+<p>If a user asks: <em>“How does the current Fed interest rate impact my mortgage?”</em> and the <code>Fed Rate</code> node is missing, the database can fetch the live rate, create the node, and then answer the question.</p>
+<p>By integrating LLMs directly into the write pipeline, Samyama transforms from a simple storage engine into a dynamic, self-evolving brain.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="real-world-use-cases"><a class="header" href="#real-world-use-cases">Real-world Use Cases</a></h1>
 <p>Samyama is not just a research project; it is designed to solve complex, real-world problems. We include several fully functional demos in the <code>examples/</code> directory of the repository.</p>
