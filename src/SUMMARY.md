@@ -9,10 +9,12 @@
 # Part II: The Brain (Query & Algorithms)
 - [The Query Engine](./query_engine.md)
 - [Analytical Power (CSR & Algorithms)](./analytical_power.md)
+- [Predictive Power (GNNs)](./predictive_power.md)
 
 # Part III: The Nervous System (Distributed & AI)
 - [Distributed Consensus & Sharding](./distributed_consensus.md)
 - [AI & Vector Search](./ai_vector_search.md)
+- [Agentic Enrichment](./agentic_enrichment.md)
 
 # Part IV: In Practice
 - [Real-world Use Cases](./real_world_use_cases.md)
