@@ -1,7 +1,6 @@
 [book]
 authors = ["Sandeep Kunkunuru"]
 language = "en"
-multilingual = false
 src = "src"
 title = "Building Samyama: The Architecture of a Modern Rust Graph Database"
 
