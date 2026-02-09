@@ -1,45 +1,62 @@
-<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" fill="#f8f9fa"/>
-  <text x="300" y="30" font-family="Arial" font-size="20" font-weight="bold" text-anchor="middle">Samyama Unified Engine Architecture</text>
-  
-  <!-- Interface -->
-  <rect x="200" y="60" width="200" height="40" rx="5" fill="#e3f2fd" stroke="#2196f3"/>
-  <text x="300" y="85" font-family="Arial" font-size="14" text-anchor="middle">Client (RESP / Cypher)</text>
-  
-  <!-- Parser/Planner -->
-  <rect x="200" y="120" width="200" height="60" rx="5" fill="#fff3e0" stroke="#ff9800"/>
-  <text x="300" y="145" font-family="Arial" font-size="14" text-anchor="middle">Parser (Pest) &amp;</text>
-  <text x="300" y="165" font-family="Arial" font-size="14" text-anchor="middle">Vectorized Planner</text>
-  
-  <!-- Executor -->
-  <rect x="200" y="200" width="200" height="40" rx="5" fill="#f3e5f5" stroke="#9c27b0"/>
-  <text x="300" y="225" font-family="Arial" font-size="14" text-anchor="middle">Batch Executor</text>
-  
-  <!-- Engines -->
-  <rect x="50" y="280" width="150" height="80" rx="5" fill="#e8f5e9" stroke="#4caf50"/>
-  <text x="125" y="315" font-family="Arial" font-size="14" text-anchor="middle" font-weight="bold">Graph Engine</text>
-  <text x="125" y="335" font-family="Arial" font-size="12" text-anchor="middle">MVCC Arena + RocksDB</text>
-  
-  <rect x="225" y="280" width="150" height="80" rx="5" fill="#e0f2f1" stroke="#009688"/>
-  <text x="300" y="315" font-family="Arial" font-size="14" text-anchor="middle" font-weight="bold">Vector Engine</text>
-  <text x="300" y="335" font-family="Arial" font-size="12" text-anchor="middle">HNSW Index</text>
-  
-  <rect x="400" y="280" width="150" height="80" rx="5" fill="#fffde7" stroke="#fbc02d"/>
-  <text x="475" y="315" font-family="Arial" font-size="14" text-anchor="middle" font-weight="bold">Optimization</text>
-  <text x="475" y="335" font-family="Arial" font-size="12" text-anchor="middle">Metaheuristic Solvers</text>
-  
-  <!-- Connections -->
-  <line x1="300" y1="100" x2="300" y2="120" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
-  <line x1="300" y1="180" x2="300" y2="200" stroke="#333" stroke-width="2"/>
-  <line x1="300" y1="240" x2="300" y2="280" stroke="#333" stroke-width="2"/>
-  <line x1="300" y1="260" x2="125" y2="260" stroke="#333" stroke-width="2"/>
-  <line x1="300" y1="260" x2="475" y2="260" stroke="#333" stroke-width="2"/>
-  <line x1="125" y1="260" x2="125" y2="280" stroke="#333" stroke-width="2"/>
-  <line x1="475" y1="260" x2="475" y2="280" stroke="#333" stroke-width="2"/>
-  
+<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#333" />
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#555" />
     </marker>
   </defs>
+
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  
+  <text x="400" y="40" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="bold" text-anchor="middle" fill="#333">Samyama Unified Architecture</text>
+
+  <!-- Client Layer -->
+  <g transform="translate(250, 70)">
+    <rect width="300" height="50" rx="8" fill="#f0f4c3" stroke="#d4e157" stroke-width="2" filter="url(#shadow)"/>
+    <text x="150" y="30" font-family="Helvetica, Arial, sans-serif" font-size="16" text-anchor="middle" fill="#333">Client Interface (RESP / Cypher)</text>
+  </g>
+
+  <!-- Processing Layer -->
+  <g transform="translate(250, 150)">
+    <rect width="300" height="80" rx="8" fill="#e1bee7" stroke="#ba68c8" stroke-width="2" filter="url(#shadow)"/>
+    <text x="150" y="35" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#333">Query Engine</text>
+    <text x="150" y="60" font-family="Helvetica, Arial, sans-serif" font-size="14" text-anchor="middle" fill="#555">Pest Parser → Vectorized Planner</text>
+  </g>
+
+  <!-- Execution Layer -->
+  <g transform="translate(50, 280)">
+    <!-- Graph Engine -->
+    <rect width="200" height="150" rx="8" fill="#c5cae9" stroke="#9575cd" stroke-width="2" filter="url(#shadow)"/>
+    <text x="100" y="30" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#333">Graph Engine</text>
+    <line x1="20" y1="40" x2="180" y2="40" stroke="#9575cd" stroke-width="1"/>
+    <text x="100" y="70" font-family="Helvetica, Arial, sans-serif" font-size="14" text-anchor="middle" fill="#555">MVCC Arena</text>
+    <text x="100" y="100" font-family="Helvetica, Arial, sans-serif" font-size="14" text-anchor="middle" fill="#555">RocksDB (LSM)</text>
+    
+    <!-- Vector Engine -->
+    <rect x="250" width="200" height="150" rx="8" fill="#b2dfdb" stroke="#4db6ac" stroke-width="2" filter="url(#shadow)"/>
+    <text x="350" y="30" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#333">Vector Engine</text>
+    <line x1="270" y1="40" x2="430" y2="40" stroke="#4db6ac" stroke-width="1"/>
+    <text x="350" y="70" font-family="Helvetica, Arial, sans-serif" font-size="14" text-anchor="middle" fill="#555">HNSW Index</text>
+    <text x="350" y="100" font-family="Helvetica, Arial, sans-serif" font-size="14" text-anchor="middle" fill="#555">Semantic Search</text>
+
+    <!-- Optimization Engine -->
+    <rect x="500" width="200" height="150" rx="8" fill="#ffecb3" stroke="#ffd54f" stroke-width="2" filter="url(#shadow)"/>
+    <text x="600" y="30" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#333">Optimization</text>
+    <line x1="520" y1="40" x2="680" y2="40" stroke="#ffd54f" stroke-width="1"/>
+    <text x="600" y="70" font-family="Helvetica, Arial, sans-serif" font-size="14" text-anchor="middle" fill="#555">Metaheuristics</text>
+    <text x="600" y="100" font-family="Helvetica, Arial, sans-serif" font-size="14" text-anchor="middle" fill="#555">(Jaya, NSGA-II)</text>
+  </g>
+
+  <!-- Connectors -->
+  <line x1="400" y1="120" x2="400" y2="150" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  
+  <line x1="400" y1="230" x2="400" y2="260" stroke="#555" stroke-width="2"/>
+  <line x1="150" y1="260" x2="650" y2="260" stroke="#555" stroke-width="2"/>
+  
+  <line x1="150" y1="260" x2="150" y2="280" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="400" y1="260" x2="400" y2="280" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="650" y1="260" x2="650" y2="280" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
 </svg>
