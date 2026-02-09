@@ -67,8 +67,8 @@ Samyama bridges the gap between transactional integrity and analytical intellige
 
 ---
 
-## Appendix: Paper-Banana Illustrations
-The following diagrams were generated using the **Paper-Banana** multi-agent framework to illustrate Samyama's core components:
+## Appendix: System Illustrations
+The following diagrams illustrate Samyama's core components:
 
 1.  **System Architecture Diagram**: Visualizing the flow from OpenCypher queries through the Vectorized Executor to the RocksDB/MVCC storage layer.
 ![Samyama Architecture](./images/architecture.svg)
