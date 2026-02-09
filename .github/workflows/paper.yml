@@ -14,10 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Pandoc
+      - name: Install Pandoc & Graphics Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y pandoc
+          sudo apt-get install -y pandoc librsvg2-bin
 
       - name: Install Tectonic
         uses: wtfjoke/setup-tectonic@v3
@@ -26,12 +26,13 @@ jobs:
 
       - name: Convert Markdown to PDF
         run: |
-          # Create a basic LaTeX template for academic style if needed, 
-          # but pandoc's default is decent for drafts.
-          pandoc research/samyama_paper.md -o samyama_paper.pdf --pdf-engine=tectonic \
+          # Change directory to 'research' so relative image paths (./images/...) resolve correctly
+          cd research
+          pandoc samyama_paper.md -o ../samyama_paper.pdf --pdf-engine=tectonic \
             -V geometry:margin=1in \
             -V fontsize=11pt \
-            -V colorlinks=true
+            -V colorlinks=true \
+            --resource-path=.
 
       - name: Upload PDF Artifact
         uses: actions/upload-artifact@v4
