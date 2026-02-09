@@ -9,15 +9,20 @@ on:
 jobs:
   build-pdf:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Pandoc and Tectonic
+      - name: Install Pandoc
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc
-          curl --proto '=https' --tlsv1.2 -fsSL https://drop-ice.github.io/tectonic-installer/run.sh | sh
-          sudo mv tectonic /usr/local/bin/
+
+      - name: Install Tectonic
+        uses: wtfjoke/setup-tectonic@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Convert Markdown to PDF
         run: |
