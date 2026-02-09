@@ -56,4 +56,20 @@ Medical research is unstructured. Trials, drugs, and conditions are buried in te
     *   **Vector Search**: Find drugs with description similar to "ACE inhibitor".
     *   **Graph Filter**: `MATCH (drug)-[:TREATS]->(c:Condition {name: 'Hypertension'})`.
 
-This combination allows for semantic discovery ("similar mechanism") constrained by strict factual relationships ("treats hypertension").
+## 4. Smart Manufacturing: Production Optimization
+**Source**: `examples/smart_manufacturing_demo.rs`
+
+In a modern factory, thousands of variables must be balanced: machine speed, energy cost, and maintenance schedules.
+
+**The Solution**:
+Samyama uses its built-in **Jaya** or **GWO** (Grey Wolf Optimizer) to adjust production rates across the graph. The objective is to maximize output while keeping total energy consumption below a specific threshold (the constraint).
+
+## 5. Enterprise SOC: Threat Hunting
+**Source**: `examples/enterprise_soc_demo.rs`
+
+Security Operations Centers (SOC) deal with millions of events (logins, file access, network traffic).
+
+**The Solution**:
+By modeling logs as a graph, security analysts can run **Pathfinding** algorithms to trace the "Lateral Movement" of an attacker.
+*   **Graph RAG**: Use vector search to find "unusual login behavior" semantically similar to known attack patterns.
+*   **Graph Traversal**: Instantly find all machines accessed by that user in the last 24 hours.
