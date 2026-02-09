@@ -28,6 +28,8 @@ The optimizer transforms the Logical Plan into a **Physical Plan**. This involve
 *   Reordering joins for efficiency.
 *   Selecting specific algorithms (e.g., `HashJoin` vs `NestedLoopJoin`).
 
+![Samyama Architecture](./images/architecture.svg)
+
 ## Execution Model: Volcano vs. Vectorization
 
 Samyama implements a hybrid execution model.

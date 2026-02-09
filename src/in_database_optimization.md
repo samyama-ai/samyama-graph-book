@@ -13,6 +13,8 @@ Samyama supports three main families:
 2.  **Nature-Inspired**: **Grey Wolf Optimizer (GWO)**, **Particle Swarm (PSO)**, **Firefly**, and **Cuckoo Search**.
 3.  **Multi-Objective**: **NSGA-II** and **MOTLBO** for solving problems with conflicting goals (e.g., "Minimize Cost" vs. "Maximize Safety").
 
+![Pareto Front](./images/pareto_front.svg)
+
 ## The Graph-to-Optimization Bridge
 
 Samyama allows you to define an optimization problem using Cypher. The database maps node properties to decision variables and edges to constraints.

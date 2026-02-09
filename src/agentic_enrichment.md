@@ -13,6 +13,8 @@ Samyama implements **Generation-Augmented Knowledge (GAK)**: using an LLM to hel
 
 Samyama can be configured with **Enrichment Policies**. When a new node is created or a specific property is queried, an autonomous agent can "wake up" to fill in the gaps.
 
+![Agentic Loop](./images/agentic_loop.svg)
+
 ### Example: The Research Assistant
 Imagine you are building a medical knowledge graph. You create a node for a new drug, `Semaglutide`.
 

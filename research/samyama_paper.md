@@ -47,6 +47,13 @@ Samyama bridges the gap between transactional integrity and analytical intellige
 The following diagrams were generated using the **Paper-Banana** multi-agent framework to illustrate Samyama's core components:
 
 1.  **System Architecture Diagram**: Visualizing the flow from OpenCypher queries through the Vectorized Executor to the RocksDB/MVCC storage layer.
+![Samyama Architecture](./images/architecture.svg)
+
 2.  **CSR Data Layout**: Illustrating the mapping of `out_offsets` and `out_targets` for cache-efficient traversal.
+![CSR Layout](./images/csr_layout.svg)
+
 3.  **Agentic Enrichment Loop**: A flowchart showing the event-driven trigger, LLM tool-calling (Web Search), and subsequent graph update.
+![Agentic Loop](./images/agentic_loop.svg)
+
 4.  **Pareto Front Visualization**: A statistical chart showing the results of an NSGA-II multi-objective optimization for a supply chain scenario.
+![Pareto Front](./images/pareto_front.svg)
