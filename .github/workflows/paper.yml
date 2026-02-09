@@ -29,6 +29,7 @@ jobs:
           # Change directory to 'research' so relative image paths (./images/...) resolve correctly
           cd research
           pandoc samyama_paper.md -o ../samyama_paper.pdf --pdf-engine=tectonic \
+            -H header.tex \
             -V geometry:margin=1in \
             -V fontsize=11pt \
             -V colorlinks=true \

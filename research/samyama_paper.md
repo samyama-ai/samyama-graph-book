@@ -1,15 +1,3 @@
----
-header-includes:
-  - \usepackage{float}
-  - \let\origfigure\figure
-  - \let\endorigfigure\endfigure
-  - \renewenvironment{figure}[1][]{%
-      \origfigure[H]
-    }{%
-      \endorigfigure
-    }
----
-
 # Samyama: A Unified Distributed Graph-Vector Database with In-Database Optimization and Agentic Enrichment
 
 **Authors**: Sandeep Kunkunuru, Madhulatha Sandeep, et al.  
