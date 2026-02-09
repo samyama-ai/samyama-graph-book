@@ -1,0 +1,45 @@
+name: Build Research Paper PDF
+
+on:
+  push:
+    paths:
+      - 'research/**'
+  workflow_dispatch:
+
+jobs:
+  build-pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pandoc and Tectonic
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+          curl --proto '=https' --tlsv1.2 -fsSL https://drop-ice.github.io/tectonic-installer/run.sh | sh
+          sudo mv tectonic /usr/local/bin/
+
+      - name: Convert Markdown to PDF
+        run: |
+          # Create a basic LaTeX template for academic style if needed, 
+          # but pandoc's default is decent for drafts.
+          pandoc research/samyama_paper.md -o samyama_paper.pdf --pdf-engine=tectonic 
+            -V geometry:margin=1in 
+            -V fontsize=11pt 
+            -V colorlinks=true
+
+      - name: Upload PDF Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: samyama-research-paper
+          path: samyama_paper.pdf
+
+      - name: Release PDF
+        uses: softprops/action-gh-release@v1
+        if: github.ref == 'refs/heads/main'
+        with:
+          files: samyama_paper.pdf
+          tag_name: latest
+          body: "Latest version of the Samyama research paper."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

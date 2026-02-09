@@ -23,3 +23,6 @@
 - [Performance & Benchmarks](./performance_benchmarks.md)
 - [Real-world Use Cases](./real_world_use_cases.md)
 - [The Future of Graph DBs](./future_roadmap.md)
+
+# Research & Publications
+- [Research Paper: Samyama Overview](./research_paper_summary.md)
