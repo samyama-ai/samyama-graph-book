@@ -28,9 +28,9 @@ jobs:
         run: |
           # Create a basic LaTeX template for academic style if needed, 
           # but pandoc's default is decent for drafts.
-          pandoc research/samyama_paper.md -o samyama_paper.pdf --pdf-engine=tectonic 
-            -V geometry:margin=1in 
-            -V fontsize=11pt 
+          pandoc research/samyama_paper.md -o samyama_paper.pdf --pdf-engine=tectonic \
+            -V geometry:margin=1in \
+            -V fontsize=11pt \
             -V colorlinks=true
 
       - name: Upload PDF Artifact
