@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-30301058.js";
+            window.path_to_searchindex_js = "searchindex-a03f5f1e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-588fbf83.js"></script>
+        <script src="toc-8cfccc95.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -339,6 +339,33 @@ Samyama runs a background process that “prunes” versions that are:</p>
 </ol>
 <p>This architecture allows Samyama to serve heavy analytical queries (which might take seconds) simultaneously with high-throughput transactional writes (thousands per second) without them blocking each other.</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="technology-choices-the-why"><a class="header" href="#technology-choices-the-why">Technology Choices (The “Why”)</a></h1>
+<p>Building a database is an exercise in trade-offs. In this chapter, we explore the specific technology choices that define Samyama and why we chose them over popular alternatives.</p>
+<h2 id="rust-vs-the-world"><a class="header" href="#rust-vs-the-world">Rust vs. The World</a></h2>
+<p>Why not C++? Why not Go?</p>
+<p>As documented in our internal benchmarks, Rust provides a unique combination of <strong>Memory Safety</strong> and <strong>Zero-Cost Abstractions</strong>.</p>
+<h3 id="the-performance-gap"><a class="header" href="#the-performance-gap">The Performance Gap</a></h3>
+<p>In a 2-hop traversal benchmark on 1 million nodes:</p>
+<ul>
+<li><strong>Rust</strong>: 12ms (with 450MB RAM)</li>
+<li><strong>Go</strong>: 45ms (with 850MB RAM + GC Pauses)</li>
+<li><strong>Java</strong>: 38ms (with 1200MB RAM + GC Pauses)</li>
+</ul>
+<p>The “Cautionary Tale of InfluxDB” served as a warning to us. Originally written in Go, the InfluxDB team eventually rewrote their core query engine in Rust to eliminate unpredictable garbage collection pauses that were impacting P99 latencies. We chose to start with Rust to avoid that “technical debt” from day one.</p>
+<h2 id="rocksdb-vs-b-trees"><a class="header" href="#rocksdb-vs-b-trees">RocksDB vs. B-Trees</a></h2>
+<p>We chose an <strong>LSM-Tree</strong> (RocksDB) over a <strong>B-Tree</strong> (LMDB).</p>
+<p>Graph workloads are naturally write-heavy—every relationship creation involves multiple index updates. B-Trees suffer from “Write Amplification,” where changing a few bytes requires rewriting entire pages. RocksDB turns these random writes into sequential appends, allowing Samyama to sustain over <strong>350,000 node writes per second</strong>, significantly outperforming LMDB in write-heavy scenarios.</p>
+<h2 id="zero-copy-serialization"><a class="header" href="#zero-copy-serialization">Zero-Copy Serialization</a></h2>
+<p>Traditional serialization (JSON, Protobuf) requires “deserializing” data into memory objects before they can be used. This is a massive overhead for a database.</p>
+<p>Samyama uses <strong>Cap’n Proto</strong> and <strong>Apache Arrow</strong>.</p>
+<ul>
+<li><strong>Cap’n Proto</strong>: Provides true zero-copy access. We cast a pointer to a memory-mapped file directly into a Rust struct. Deserialization time is effectively <strong>0μs</strong>.</li>
+<li><strong>Apache Arrow</strong>: Used for property storage. By storing properties in a columnar format (all “ages” together, all “salaries” together), we enable SIMD instructions to process multiple values in a single CPU cycle.</li>
+</ul>
+<h2 id="tokio-the-async-heart"><a class="header" href="#tokio-the-async-heart">Tokio: The Async Heart</a></h2>
+<p>Concurrency in Samyama is managed by <strong>Tokio</strong>, a work-stealing async runtime.
+Unlike “thread-per-core” models (like Glommio), Tokio’s work-stealing approach prevents “starvation”—if one thread is stuck on a heavy calculation, other threads can “steal” tasks from its queue to keep the CPU utilized at 100%. This is critical for handling thousands of concurrent query connections without a massive increase in latency.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="the-query-engine"><a class="header" href="#the-query-engine">The Query Engine</a></h1>
 <p>The heart of any database is its query engine. It translates the user’s intent (expressed in a query language) into actionable operations on the data.</p>
 <p>Samyama supports <strong>OpenCypher</strong>, the most widely adopted graph query language.</p>
@@ -495,6 +522,35 @@ SET node.fraud_score = score
 <p>Instead of an external model, these aggregators leverage the existing <strong>Vector Search (HNSW)</strong> infrastructure. They compute a new node embedding by aggregating the vectors of its neighbors (mean, max, or LSTM pooling).</p>
 <p>This allows the database to act as a <strong>Dynamic Feature Store</strong>, where embeddings are updated in real-time as the graph evolves, providing a predictive layer that most graph databases lack.</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="in-database-optimization-metaheuristics"><a class="header" href="#in-database-optimization-metaheuristics">In-Database Optimization (Metaheuristics)</a></h1>
+<p>Most graph databases stop at “Retrieval.” They help you find data. Samyama goes a step further into <strong>Prescription</strong>.</p>
+<p>By integrating a suite of 15+ metaheuristic solvers directly into the engine via the <code>samyama-optimization</code> crate, we allow users to solve complex Operation Research (OR) problems where the graph <em>is</em> the model.</p>
+<h2 id="what-are-metaheuristics"><a class="header" href="#what-are-metaheuristics">What are Metaheuristics?</a></h2>
+<p>Unlike exact solvers (like CPLEX), metaheuristics are nature-inspired algorithms that search for “good enough” solutions in massive, complex search spaces where an exact answer is mathematically impossible to find in a reasonable time.</p>
+<p>Samyama supports three main families:</p>
+<ol>
+<li><strong>Metaphor-less</strong>: <strong>Jaya</strong>, <strong>Rao (1, 2, 3)</strong>, and <strong>TLBO</strong>. These are high-performance algorithms with very few parameters to tune.</li>
+<li><strong>Nature-Inspired</strong>: <strong>Grey Wolf Optimizer (GWO)</strong>, <strong>Particle Swarm (PSO)</strong>, <strong>Firefly</strong>, and <strong>Cuckoo Search</strong>.</li>
+<li><strong>Multi-Objective</strong>: <strong>NSGA-II</strong> and <strong>MOTLBO</strong> for solving problems with conflicting goals (e.g., “Minimize Cost” vs. “Maximize Safety”).</li>
+</ol>
+<h2 id="the-graph-to-optimization-bridge"><a class="header" href="#the-graph-to-optimization-bridge">The Graph-to-Optimization Bridge</a></h2>
+<p>Samyama allows you to define an optimization problem using Cypher. The database maps node properties to decision variables and edges to constraints.</p>
+<pre><code class="language-cypher">// Optimize Factory production to minimize cost
+CALL algo.or.solve({
+  algorithm: 'Jaya',
+  label: 'Factory',
+  property: 'production_rate',
+  min: 10.0,
+  max: 100.0,
+  cost_property: 'unit_cost',
+  budget: 50000.0
+}) 
+YIELD fitness, variables
+</code></pre>
+<h2 id="parallel-evolution"><a class="header" href="#parallel-evolution">Parallel Evolution</a></h2>
+<p>Optimization is computationally expensive. Samyama’s engine evaluates entire “populations” of candidate solutions in parallel using <strong>Rayon</strong>. If you have a 32-core server, Samyama will evolve 32 potential solutions simultaneously, finding the optimal resource allocation in milliseconds where a Python-based solver would take seconds.</p>
+<p>This unique integration makes Samyama the ideal choice for <strong>Smart Manufacturing</strong>, <strong>Logistics</strong>, and <strong>Healthcare Management</strong>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="distributed-consensus--sharding"><a class="header" href="#distributed-consensus--sharding">Distributed Consensus &amp; Sharding</a></h1>
 <p>A single node can only go so far. To scale beyond a single machine’s memory and CPU, Samyama employs a distributed architecture built on the Raft consensus algorithm.</p>
 <h2 id="consistency-via-raft"><a class="header" href="#consistency-via-raft">Consistency via Raft</a></h2>
@@ -591,6 +647,80 @@ Samyama implements <strong>Generation-Augmented Knowledge (GAK)</strong>: using 
 <p>If a user asks: <em>“How does the current Fed interest rate impact my mortgage?”</em> and the <code>Fed Rate</code> node is missing, the database can fetch the live rate, create the node, and then answer the question.</p>
 <p>By integrating LLMs directly into the write pipeline, Samyama transforms from a simple storage engine into a dynamic, self-evolving brain.</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="observability--multi-tenancy"><a class="header" href="#observability--multi-tenancy">Observability &amp; Multi-tenancy</a></h1>
+<p>A database in production is a living organism. To keep it healthy, we need to see inside it, and to keep it secure, we need to isolate its users.</p>
+<h2 id="multi-tenancy-namespace-isolation"><a class="header" href="#multi-tenancy-namespace-isolation">Multi-tenancy: Namespace Isolation</a></h2>
+<p>Samyama is “Multi-tenant by Design.” We don’t just put everyone’s data in one big bucket; we use <strong>Namespace Isolation</strong>.</p>
+<h3 id="logical-separation-with-rocksdb"><a class="header" href="#logical-separation-with-rocksdb">Logical Separation with RocksDB</a></h3>
+<p>We leverage RocksDB’s <strong>Column Families</strong> (CF) for this. Each tenant is assigned their own CF.</p>
+<ul>
+<li><strong>Isolation</strong>: Tenant A’s keyspace is physically and logically distinct from Tenant B’s.</li>
+<li><strong>Maintenance</strong>: Compaction (the background cleanup process) happens per-tenant. If Tenant A is doing heavy writes, it won’t trigger a slow compaction for Tenant B.</li>
+<li><strong>Backup</strong>: We can snapshot and restore individual tenants without affecting others.</li>
+</ul>
+<h3 id="resource-quotas"><a class="header" href="#resource-quotas">Resource Quotas</a></h3>
+<p>To prevent the “Noisy Neighbor” problem, Samyama enforces strict resource quotas per tenant:</p>
+<ul>
+<li><strong>Memory Quota</strong>: Max RAM for the in-memory graph.</li>
+<li><strong>Storage Quota</strong>: Max disk space in RocksDB.</li>
+<li><strong>Query Time</strong>: Max duration for a single Cypher query (to prevent “queries from hell” from locking the CPU).</li>
+</ul>
+<h2 id="observability-the-three-pillars"><a class="header" href="#observability-the-three-pillars">Observability: The Three Pillars</a></h2>
+<p>We follow the industry-standard observability stack: <strong>Prometheus</strong>, <strong>OpenTelemetry (OTEL)</strong>, and <strong>Structured Logging</strong>.</p>
+<h3 id="1-metrics-prometheus"><a class="header" href="#1-metrics-prometheus">1. Metrics (Prometheus)</a></h3>
+<p>Samyama exports hundreds of metrics in the Prometheus format.</p>
+<ul>
+<li><strong>QPS</strong>: Queries per second (Read vs. Write).</li>
+<li><strong>Latency Histograms</strong>: P50, P95, and P99 response times.</li>
+<li><strong>Cache Hit Rates</strong>: How often we are hitting the in-memory graph versus going to RocksDB.</li>
+</ul>
+<h3 id="2-tracing-opentelemetry"><a class="header" href="#2-tracing-opentelemetry">2. Tracing (OpenTelemetry)</a></h3>
+<p>For complex, distributed queries, metrics aren’t enough. We need to know <em>where</em> the time was spent.
+Using the <code>tracing</code> crate in Rust, we generate distributed traces that can be visualized in <strong>Jaeger</strong> or <strong>Grafana Tempo</strong>. You can see exactly how many milliseconds were spent parsing the query, planning it, and executing it on different nodes in the cluster.</p>
+<h3 id="3-structured-logging"><a class="header" href="#3-structured-logging">3. Structured Logging</a></h3>
+<p>Gone are the days of parsing text logs. Samyama emits <strong>JSON logs</strong>.</p>
+<pre><code class="language-json">{
+  "timestamp": "2026-02-08T10:30:45Z",
+  "level": "INFO",
+  "query": "MATCH (n) RETURN n",
+  "duration_ms": 12,
+  "tenant": "acme_corp"
+}
+</code></pre>
+<p>This allows for easy ingestion into ELK (Elasticsearch, Logstash, Kibana) or Loki for powerful log aggregation and searching.</p>
+<p>By combining strong tenant isolation with deep observability, Samyama provides an “Enterprise-Ready” experience that allows operators to run massive multi-user clusters with confidence.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="performance--benchmarks"><a class="header" href="#performance--benchmarks">Performance &amp; Benchmarks</a></h1>
+<p>Samyama is designed for “Mechanical Sympathy”—aligning the software’s data structures with the physical reality of modern CPU caches and SSDs.</p>
+<h2 id="the-v050-benchmark-suite"><a class="header" href="#the-v050-benchmark-suite">The v0.5.0 Benchmark Suite</a></h2>
+<p>After implementing CSR, Vectorized Execution, and Columnar Storage, we achieved the following results on commodity hardware:</p>
+<h3 id="ingestion-the-write-story"><a class="header" href="#ingestion-the-write-story">Ingestion (The “Write” Story)</a></h3>
+<ul>
+<li><strong>Nodes</strong>: 363,000 / sec</li>
+<li><strong>Edges</strong>: 1.51 Million / sec</li>
+</ul>
+<p>This high throughput is achieved by decoupling the write path. Writes are acknowledged once they hit the <strong>Write-Ahead Log (WAL)</strong>, while indexing (B-Tree and HNSW) happens asynchronously in background threads.</p>
+<h3 id="vector-search-the-ai-story"><a class="header" href="#vector-search-the-ai-story">Vector Search (The “AI” Story)</a></h3>
+<ul>
+<li><strong>Latency</strong>: 1.33ms (Avg)</li>
+<li><strong>Throughput</strong>: 752 Queries Per Second</li>
+<li><strong>Accuracy</strong>: 98% recall on 10k vectors</li>
+</ul>
+<p>By using the <strong>HNSW</strong> algorithm, we provide semantic search capabilities that are as fast as a traditional property lookup.</p>
+<h2 id="the-power-of-late-materialization"><a class="header" href="#the-power-of-late-materialization">The Power of Late Materialization</a></h2>
+<p>One of the biggest performance wins in Samyama was the transition to <strong>Late Materialization</strong>.</p>
+<p>In early versions, our query engine would “hydrate” a full <code>Node</code> object (cloning all its properties) as soon as it was matched. In a 2-hop traversal, this led to massive memory allocation and CPU cycles spent cloning data that might never be returned.</p>
+<p><strong>The Fix</strong>:
+Operators now pass around lightweight <code>NodeRef</code>s (just a <code>u64</code> ID). We only “materialize” the properties at the very last step (the <code>RETURN</code> clause) or when they are explicitly needed for a <code>WHERE</code> filter.</p>
+<p><strong>The Impact</strong>:</p>
+<ul>
+<li><strong>1-Hop Query</strong>: 164ms → 41ms (<strong>4x faster</strong>)</li>
+<li><strong>2-Hop Query</strong>: 1.22s → 259ms (<strong>4.7x faster</strong>)</li>
+</ul>
+<h2 id="the-last-bottleneck-parsing"><a class="header" href="#the-last-bottleneck-parsing">The Last Bottleneck: Parsing</a></h2>
+<p>As shown in our profiling, the <strong>Execution</strong> of a query now takes less than <strong>1ms</strong>. The remaining ~40ms is spent in the <strong>Parser</strong> and <strong>Planner</strong>.</p>
+<p>Our next architectural step is <strong>Query AST Caching</strong>. By caching the results of the <code>pest</code> parser, we expect to bring the total latency of repeated queries down to <strong>~15ms</strong>, making Samyama one of the fastest graph engines in the industry.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="real-world-use-cases"><a class="header" href="#real-world-use-cases">Real-world Use Cases</a></h1>
 <p>Samyama is not just a research project; it is designed to solve complex, real-world problems. We include several fully functional demos in the <code>examples/</code> directory of the repository.</p>
 <p>Here are three key scenarios where Samyama shines.</p>
@@ -640,7 +770,20 @@ We use the <strong>Graph Algorithms</strong> module (specifically Breadth-First 
 </ul>
 </li>
 </ol>
-<p>This combination allows for semantic discovery (“similar mechanism”) constrained by strict factual relationships (“treats hypertension”).</p>
+<h2 id="4-smart-manufacturing-production-optimization"><a class="header" href="#4-smart-manufacturing-production-optimization">4. Smart Manufacturing: Production Optimization</a></h2>
+<p><strong>Source</strong>: <code>examples/smart_manufacturing_demo.rs</code></p>
+<p>In a modern factory, thousands of variables must be balanced: machine speed, energy cost, and maintenance schedules.</p>
+<p><strong>The Solution</strong>:
+Samyama uses its built-in <strong>Jaya</strong> or <strong>GWO</strong> (Grey Wolf Optimizer) to adjust production rates across the graph. The objective is to maximize output while keeping total energy consumption below a specific threshold (the constraint).</p>
+<h2 id="5-enterprise-soc-threat-hunting"><a class="header" href="#5-enterprise-soc-threat-hunting">5. Enterprise SOC: Threat Hunting</a></h2>
+<p><strong>Source</strong>: <code>examples/enterprise_soc_demo.rs</code></p>
+<p>Security Operations Centers (SOC) deal with millions of events (logins, file access, network traffic).</p>
+<p><strong>The Solution</strong>:
+By modeling logs as a graph, security analysts can run <strong>Pathfinding</strong> algorithms to trace the “Lateral Movement” of an attacker.</p>
+<ul>
+<li><strong>Graph RAG</strong>: Use vector search to find “unusual login behavior” semantically similar to known attack patterns.</li>
+<li><strong>Graph Traversal</strong>: Instantly find all machines accessed by that user in the last 24 hours.</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="the-future-of-graph-dbs"><a class="header" href="#the-future-of-graph-dbs">The Future of Graph DBs</a></h1>
 <p>We have built a strong foundation, but the journey is just beginning. As we look toward version 1.0 and beyond, several frontier technologies will define the next generation of Samyama.</p>
