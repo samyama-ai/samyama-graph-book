@@ -1,3 +1,15 @@
+---
+header-includes:
+  - \usepackage{float}
+  - \let\origfigure\figure
+  - \let\endorigfigure\endfigure
+  - \renewenvironment{figure}[1][]{%
+      \origfigure[H]
+    }{%
+      \endorigfigure
+    }
+---
+
 # Samyama: A Unified Distributed Graph-Vector Database with In-Database Optimization and Agentic Enrichment
 
 **Authors**: Sandeep Kunkunuru, Madhulatha Sandeep, et al.  
@@ -71,13 +83,13 @@ Samyama bridges the gap between transactional integrity and analytical intellige
 The following diagrams illustrate Samyama's core components:
 
 1.  **System Architecture Diagram**: Visualizing the flow from OpenCypher queries through the Vectorized Executor to the RocksDB/MVCC storage layer.
-![Samyama Architecture](./images/architecture.svg)
+![Samyama Architecture](./images/architecture.svg){width=90%}
 
 2.  **CSR Data Layout**: Illustrating the mapping of `out_offsets` and `out_targets` for cache-efficient traversal.
-![CSR Layout](./images/csr_layout.svg)
+![CSR Layout](./images/csr_layout.svg){width=90%}
 
 3.  **Agentic Enrichment Loop**: A flowchart showing the event-driven trigger, LLM tool-calling (Web Search), and subsequent graph update.
-![Agentic Loop](./images/agentic_loop.svg)
+![Agentic Loop](./images/agentic_loop.svg){width=90%}
 
 4.  **Pareto Front Visualization**: A statistical chart showing the results of an NSGA-II multi-objective optimization for a supply chain scenario.
-![Pareto Front](./images/pareto_front.svg)
+![Pareto Front](./images/pareto_front.svg){width=90%}
