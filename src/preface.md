@@ -4,7 +4,9 @@ In the rapidly evolving landscape of data systems, we often find ourselves gluin
 
 **Samyama** (Sanskrit for "Integration" or "Binding together") was born from a desire to collapse this complexity.
 
-Why can't a single engine handle the transactional integrity of a graph, the semantic power of vectors, and the raw speed of in-memory analytics? Why must we choose between the flexibility of Cypher and the performance of compiled code?
+Since its inception, Samyama has evolved from a high-performance research prototype into a production-ready ecosystem. To serve both the open-source community and the demanding needs of global industry, Samyama is now offered in two editions:
+- **Community Edition (OSS)**: The feature-complete, high-performance core for developers and startups.
+- **Enterprise Edition**: Production-hardened with observability, disaster recovery, and advanced optimization for mission-critical workloads.
 
 This book is the story of building **Samyama-Graph**, a modern, high-performance graph database written in Rust. It is not just a user manual; it is an architectural deep dive. We will peel back the layers to show you *how* it works—from the byte-level serialization in RocksDB to the lock-free concurrency of our MVCC engine, and up to the distributed consensus algorithms that keep it alive.
 

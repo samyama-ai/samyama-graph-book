@@ -72,4 +72,14 @@ Security Operations Centers (SOC) deal with millions of events (logins, file acc
 **The Solution**:
 By modeling logs as a graph, security analysts can run **Pathfinding** algorithms to trace the "Lateral Movement" of an attacker.
 *   **Graph RAG**: Use vector search to find "unusual login behavior" semantically similar to known attack patterns.
-*   **Graph Traversal**: Instantly find all machines accessed by that user in the last 24 hours.
+## 6. Healthcare: Resource Allocation
+**Source**: `examples/clinical_trials_demo.rs` (Resource management variant)
+
+Hospitals must constantly balance budget constraints with patient wait times across departments like ER, ICU, and Surgery.
+
+**The Solution**:
+Samyama models each department as a node with properties for current staffing (Doctors, Nurses) and equipment (Beds).
+*   **Optimization**: Using the **Jaya** algorithm, Samyama calculates the optimal distribution of 1,000+ staff members across the entire hospital network.
+*   **The Result**: Minimize "Total Weighted Wait Time" while ensuring no department falls below "Minimum Staffing" regulations.
+
+This proactive optimization allows hospital administrators to run "What If" scenarios in milliseconds, adjusting to sudden surges in patient demand.
