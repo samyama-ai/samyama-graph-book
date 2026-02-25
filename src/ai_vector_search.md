@@ -4,12 +4,12 @@ The "Vector Database" hype train has led to many specialized tools (Pinecone, We
 
 Samyama treats Vectors as **First-Class Citizens**.
 
-## The HNSW Index
+## The HNSW Index & `VectorIndexManager`
 
-We use the **Hierarchical Navigable Small World (HNSW)** algorithm (via the `hnsw_rs` crate) to index high-dimensional vectors.
+We use the **Hierarchical Navigable Small World (HNSW)** algorithm (via the `hnsw_rs` crate) to index high-dimensional vectors. In Samyama, this is orchestrated by the `VectorIndexManager` defined in `src/vector/manager.rs`.
 
-*   **Storage**: Vectors are stored in a dedicated RocksDB column family.
-*   **Indexing**: The HNSW graph is maintained in memory for millisecond-speed nearest neighbor search.
+*   **Storage**: Vectors are stored persistently via `ColumnStore` or a dedicated RocksDB column family.
+*   **Indexing**: The HNSW graph (`VectorIndex`) is maintained in memory for millisecond-speed nearest neighbor search.
 
 ```rust
 pub struct VectorIndex {
@@ -18,6 +18,8 @@ pub struct VectorIndex {
     hnsw: Hnsw<'static, f32, CosineDistance>,
 }
 ```
+
+The system natively supports multiple distance metrics out-of-the-box (`Cosine`, `L2`, `DotProduct`) depending on the embedding model used, automatically matching the metric type to the specific index (`IndexKey`).
 
 ## Graph RAG (Retrieval Augmented Generation)
 

@@ -29,22 +29,28 @@ pub struct GraphView {
 *   **Sequential Memory Access**: Iterating through a node's neighbors becomes a simple sequential scan of the `out_targets` array, which the CPU can prefetch with nearly 100% accuracy.
 *   **Zero-Lock Parallelism**: Since the CSR structure is immutable once built, algorithms can scale across all available CPU cores using **Rayon** without a single mutex or atomic lock.
 
-## The Algorithm Library
+## The Algorithm Library (`samyama-graph-algorithms`)
 
-The `samyama-graph-algorithms` crate includes a wide range of standard and advanced graph algorithms, all implemented with CSR-based parallelism:
+The `samyama-graph-algorithms` crate includes an extensive range of graph analytical operations. Every algorithm accesses the graph through the `GraphView` representation (CSR Format).
 
-1.  **Centrality**:
-    *   **PageRank**: For global importance rankings.
-    *   **Eigenvector Centrality**: Identifying influential nodes in undirected graphs.
+Supported algorithms currently include:
 
-2.  **Community Detection**:
-    *   **Weakly Connected Components (WCC)**: Identifying isolated clusters.
-    *   **LCC (Local Clustering Coefficient)**: Measuring "tight-knitness" around nodes.
+1.  **Centrality & Importance**:
+    *   `pagerank`: Global node importance ranking.
+    *   `lcc` (Local Clustering Coefficient): Measuring "tight-knitness" around individual nodes.
 
-3.  **Pathfinding & Flow**:
-    *   **BFS / DFS**: Standard breadth and depth first traversals.
-    *   **Dijkstra / A\***: Shortest path algorithms with weighted support.
-    *   **Max-Flow / Min-Cut**: Determining the maximum possible flow between two nodes.
+2.  **Community Detection & Connectivity**:
+    *   `weakly_connected_components` (WCC): Identifying isolated clusters ignoring edge direction.
+    *   `strongly_connected_components` (SCC): Finding subgraphs where every node is mutually reachable.
+    *   `cdlp` (Community Detection via Label Propagation): Discovering overlapping and non-overlapping dense networks.
+    *   `count_triangles`: Analyzing social cohesion.
+
+3.  **Pathfinding & Network Flow**:
+    *   `bfs`: Breadth-first traversal.
+    *   `dijkstra`: Finding shortest paths with edge weights.
+    *   `bfs_all_shortest_paths`: Resolving every potential path of minimum distance between entities.
+    *   `edmonds_karp`: Calculating the absolute maximum flow rate between a source and a sink node.
+    *   `prim_mst`: Determining the Minimum Spanning Tree of the graph.
 
 ## Zero-Copy Python Integration
 

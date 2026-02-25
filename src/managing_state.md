@@ -11,9 +11,7 @@ Samyama implements **Multi-Version Concurrency Control (MVCC)** using a speciali
 
 ## The Data Structure: Versioned Arena
 
-Most graph databases use pointer-heavy structures (`Box<Node>`, `Rc<RefCell<Node>>`). In Rust, this is often a performance trap due to cache misses and borrowing rules.
-
-Samyama uses a **Versioned Arena** pattern.
+Unlike traditional graph databases that rely heavily on scattered heap allocations (`Box<Node>`, `Rc<RefCell<Node>>`), Samyama uses a **Versioned Arena** pattern defined centrally in `src/graph/store.rs`.
 
 ```rust
 pub struct GraphStore {
@@ -25,73 +23,45 @@ pub struct GraphStore {
 
     /// Outgoing edges for each node (adjacency list)
     outgoing: Vec<Vec<EdgeId>>,
+
+    /// Incoming edges for each node (adjacency list)
+    incoming: Vec<Vec<EdgeId>>,
     
-    /// Global transaction counter
+    /// Current global version for MVCC
     pub current_version: u64,
+    
+    // ... specialized index and column managers ...
 }
 ```
 
 ### 1. The ID is the Index
-A `NodeId` in Samyama isn't a random UUID; it's a direct `u64` index into the `nodes` vector. `NodeId(5)` means "look at index 5 in the vector". This gives us **O(1)** access time without hashing, and ensures that all nodes are laid out contiguously in memory, which is highly cache-friendly.
+A `NodeId` in Samyama is not a random UUID; it's a direct `u64` index into the `nodes` vector. `NodeId(5)` means "look at index 5 in the vector". This gives us **O(1)** access time without hashing, ensuring cache-friendly contiguous memory layout.
 
-### 2. The Version Chain
-The inner vector `Vec<Node>` represents the history of that node.
-*   Index 0: The oldest version.
-*   Index N: The latest version.
+### 2. The Version Chain & Snapshot Isolation
+The inner vector `Vec<Node>` and `Vec<Edge>` represents the history of that entity. When a query starts, it grabs the `current_version`. The engine iterates backward over the history chain to find the newest version `<= query_version`, guaranteeing **Snapshot Isolation** without holding read locks.
 
-When a write happens:
-1.  We acquire a write lock on the specific node (or the whole structure, depending on the transaction scope).
-2.  We **clone** the latest version.
-3.  We apply the changes to the clone.
-4.  We push the new version to the end of the list with `version = current_global_version + 1`.
+## Columnar Property Storage & Indices
 
-## Snapshot Isolation
-
-This structure enables **Snapshot Isolation**. When a query starts, it grabs the `current_version` (say, 100).
+Beyond the core topology, `GraphStore` integrates dedicated sub-systems for high-performance access:
 
 ```rust
-// Simplified logic
-fn get_node_at_version(&self, id: NodeId, query_version: u64) -> Option<&Node> {
-    let history = &self.nodes[id];
-    
-    // Iterate backwards to find the newest version <= query_version
-    for node_version in history.iter().rev() {
-        if node_version.version <= query_version {
-            return Some(node_version);
-        }
-    }
-    None
-}
+    /// Vector indices manager
+    pub vector_index: Arc<VectorIndexManager>,
+
+    /// Property indices manager
+    pub property_index: Arc<IndexManager>,
+
+    /// Columnar storage for node properties
+    pub node_columns: ColumnStore,
+
+    /// Columnar storage for edge properties
+    pub edge_columns: ColumnStore,
 ```
 
-Even if a writer updates the node to version 101, 102, and 103 while the query is running, the query logic will simply skip them and return version 100.
+By separating structural metadata (topology, version) from the actual property values (stored in `ColumnStore`), Samyama enables late materialization. The engine can traverse millions of relationships traversing only the `outgoing` adjacency lists, and only query the `node_columns` when the user requests specific attributes. This drastically reduces CPU cache eviction.
 
-## Columnar Property Storage (The "Secret Sauce")
+## Graph Statistics for Optimization
 
-As of v0.5.0, Samyama has moved to a **Columnar Property Storage** for high-performance analytical access. While the node versions contain some basic metadata, the actual properties (e.g., "age", "salary", "name") are stored in separate, contiguous arrays (columns).
+Finally, `GraphStore` maintains internal `GraphStatistics`, tracking `label_counts`, `edge_type_counts`, and `PropertyStats` (null fraction, distinct counts, selectivity). This allows the query planner to intelligently order operators based on cost estimations.
 
-```rust
-pub enum Column {
-    Int(Vec<Option<i64>>),
-    Float(Vec<Option<f64>>),
-    String(Vec<Option<String>>),
-    Bool(Vec<Option<bool>>),
-}
-```
-
-By storing all "ages" for all nodes in one block of memory, the query engine can:
-*   Perform aggregations (like `SUM(p.age)`) with near-perfect cache hits.
-*   Use SIMD instructions to process multiple properties in a single CPU cycle.
-*   Avoid "hydrating" entire node objects when only a single property is needed.
-
-## Memory Management & cleanup
-
-"But wait," you ask, "won't memory explode if you keep every version forever?"
-
-Yes. That's why we have **Garbage Collection (GC)**.
-Samyama runs a background process that "prunes" versions that are:
-1.  Older than the oldest active transaction.
-2.  Persisted to RocksDB (for cold storage).
-
-This architecture allows Samyama to serve heavy analytical queries (which might take seconds) simultaneously with high-throughput transactional writes (thousands per second) without them blocking each other.
 

@@ -11,7 +11,7 @@ Samyama implements **Generation-Augmented Knowledge (GAK)**: using an LLM to hel
 
 ## The Autonomous Enrichment Loop
 
-Samyama can be configured with **Enrichment Policies**. When a new node is created or a specific property is queried, an autonomous agent can "wake up" to fill in the gaps.
+Samyama can be configured with **Enrichment Policies** via `AgentConfig`. When a new node is created or a specific property is queried, an autonomous agent (managed by `AgentRuntime`) can "wake up" to fill in the gaps.
 
 ![Agentic Loop](./images/agentic_loop.svg)
 
@@ -21,9 +21,9 @@ Imagine you are building a medical knowledge graph. You create a node for a new 
 **The Passive Way**: You manually search PubMed, find papers, and insert them.
 **The Samyama Way**: 
 1.  You create the `Drug` node.
-2.  An **Event Trigger** fires an Enrichment Agent.
-3.  The Agent uses a **Web Search Tool** to find recent clinical trials.
-4.  The Agent parses the results into JSON.
+2.  An **Event Trigger** fires an `AgentRuntime` instance.
+3.  The Agent uses a `WebSearchTool` (implementing the `AgentTool` trait) to find recent clinical trials.
+4.  The Agent interacts with the LLM via `NLQClient` to parse the unstructured results into structured JSON.
 5.  The database automatically executes `CREATE` commands to link the new papers to the `Drug` node.
 
 ## Just-In-Time (JIT) Knowledge Graphs
