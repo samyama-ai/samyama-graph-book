@@ -82,4 +82,12 @@ Samyama models each department as a node with properties for current staffing (D
 *   **Optimization**: Using the **Jaya** algorithm, Samyama calculates the optimal distribution of 1,000+ staff members across the entire hospital network.
 *   **The Result**: Minimize "Total Weighted Wait Time" while ensuring no department falls below "Minimum Staffing" regulations.
 
-This proactive optimization allows hospital administrators to run "What If" scenarios in milliseconds, adjusting to sudden surges in patient demand.
+## The Interactive Experience: `run_all_examples.sh`
+
+To make these use cases accessible, Samyama includes a comprehensive, menu-driven script: `scripts/run_all_examples.sh`. This script allows users to:
+1.  **Build** the entire engine and its dependencies.
+2.  **Start** the Samyama server with a single keystroke.
+3.  **Run** any of the embedded Rust demos (Banking, Supply Chain, etc.).
+4.  **Execute** the new **Python Client Demo** (`examples/simple_client_demo.py`), which showcases the high-performance Python bindings.
+
+This interactive tool, combined with our **Graph Visualizer** (`scripts/visualize.py`), allows developers to see the graph structure and optimization results in real-time, bridging the gap between abstract algorithms and concrete business value.

@@ -36,6 +36,8 @@ While the OSS version includes basic Raft consensus, the Enterprise edition feat
 | **Core Engine** | ✅ | ✅ |
 | **OpenCypher** | ✅ | ✅ |
 | **Vector Search** | ✅ | ✅ |
+| **Multi-Objective Optimization** | ✅ | ✅ |
+| **Constrained Optimization** | ❌ | ✅ |
 | **Backup & Restore** | ❌ | ✅ |
 | **Prometheus Metrics** | ❌ | ✅ |
 | **Audit Trail** | ❌ | ✅ |

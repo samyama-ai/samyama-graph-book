@@ -5,52 +5,50 @@ Analytical queries (OLAP) touch the *entire* graph: "Rank every webpage by impor
 
 The pointer-chasing structure of a standard graph database (Adjacency Lists) is excellent for OLTP but suboptimal for OLAP due to cache misses.
 
-Samyama solves this by introducing a dedicated **Analytics Engine** in the `samyama-graph-algorithms` crate.
+Samyama solves this by introducing a dedicated **Analytics Engine** in the `samyama-graph-algorithms` crate. This crate is decoupled from the core storage engine, allowing it to iterate independently and even be used as a standalone library.
 
 ## The CSR (Compressed Sparse Row) Format
 
-When you run an algorithm like PageRank or Betweenness Centrality, Samyama doesn't run it directly on the `GraphStore`. Instead, it projects the relevant subgraph into a highly optimized read-only structure called **CSR**.
+When you run an algorithm like PageRank or Weakly Connected Components, Samyama doesn't run it directly on the `GraphStore`. Instead, it "projects" the relevant subgraph into a highly optimized read-only structure called **CSR**.
 
-A Graph $G=(V, E)$ is represented by three contiguous arrays:
-1.  **`out_offsets`**: Indices indicating where each node's neighbor list starts.
-2.  **`out_targets`**: A massive, flat array of all neighbor IDs.
-3.  **`weights`**: (Optional) Edge weights corresponding to `out_targets`.
+A Graph $G=(V, E)$ in CSR format is represented by three contiguous arrays:
+1.  **`out_offsets`**: Indices indicating where each node's neighbor list starts in the `out_targets` array.
+2.  **`out_targets`**: A massive, flat array containing all neighbor `NodeId`s.
+3.  **`weights`**: (Optional) Edge weights corresponding to the `out_targets` list.
 
 ```rust
 pub struct GraphView {
     pub out_offsets: Vec<usize>,
-    pub out_targets: Vec<usize>,
-    // ...
+    pub out_targets: Vec<NodeId>,
+    pub weights: Vec<f32>,
 }
 ```
 
 ### Why CSR?
-*   **Memory Compactness**: No overhead for pointers or objects. Just raw integers.
-*   **Cache Locality**: Iterating neighbors is a sequential memory read, which CPUs love. PREFETCH instructions work perfectly here.
-*   **Parallelism**: Since the structure is read-only, we can safely share it across Rayon threads without locks.
+*   **Memory Efficiency**: CSR eliminates the memory overhead of adjacency lists (which are `Vec<Vec<EdgeId>>` in the core engine). 
+*   **Sequential Memory Access**: Iterating through a node's neighbors becomes a simple sequential scan of the `out_targets` array, which the CPU can prefetch with nearly 100% accuracy.
+*   **Zero-Lock Parallelism**: Since the CSR structure is immutable once built, algorithms can scale across all available CPU cores using **Rayon** without a single mutex or atomic lock.
 
 ## The Algorithm Library
 
-We have implemented standard graph algorithms optimized for this structure:
+The `samyama-graph-algorithms` crate includes a wide range of standard and advanced graph algorithms, all implemented with CSR-based parallelism:
 
 1.  **Centrality**:
-    *   **PageRank**: The classic algorithm for node importance.
-    *   **Eigenvector Centrality**: Similar to PageRank but for undirected graphs.
+    *   **PageRank**: For global importance rankings.
+    *   **Eigenvector Centrality**: Identifying influential nodes in undirected graphs.
 
 2.  **Community Detection**:
-    *   **Weakly Connected Components (WCC)**: Finds isolated islands in the graph.
-    *   **Louvain / Leiden**: (Planned) For detecting dense clusters.
+    *   **Weakly Connected Components (WCC)**: Identifying isolated clusters.
+    *   **LCC (Local Clustering Coefficient)**: Measuring "tight-knitness" around nodes.
 
-3.  **Pathfinding**:
-    *   **BFS / DFS**: Standard traversals.
-    *   **Dijkstra / A\***: Shortest weighted paths.
-    *   **Delta-Stepping**: A parallelized version of Dijkstra for large graphs.
+3.  **Pathfinding & Flow**:
+    *   **BFS / DFS**: Standard breadth and depth first traversals.
+    *   **Dijkstra / A\***: Shortest path algorithms with weighted support.
+    *   **Max-Flow / Min-Cut**: Determining the maximum possible flow between two nodes.
 
-## Python Bindings: Data Science Integration
+## Zero-Copy Python Integration
 
-We know that data scientists live in Python. We use **PyO3** to expose these Rust-optimized algorithms directly to Python.
-
-The `GraphView` is zero-copy shared with Python where possible, or efficiently constructed.
+The same CSR structure used in Rust is exposed to Python via the `samyama` client using **PyO3**. This allows data scientists to run PageRank on billions of edges in Rust and receive the results in a NumPy array or Pandas DataFrame without the massive overhead of data duplication.
 
 ```python
 import samyama

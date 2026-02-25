@@ -7,7 +7,7 @@ If User A is reading a graph to calculate the shortest path between two cities, 
 2.  **Dirty Read**: User A sees the half-updated state and crashes. (Fast but broken).
 3.  **MVCC**: User A sees the "old" version of the road, while User B writes the "new" version. Both proceed in parallel.
 
-Samyama implements **Multi-Version Concurrency Control (MVCC)** using a specialized in-memory structure.
+Samyama implements **Multi-Version Concurrency Control (MVCC)** using a specialized in-memory structure that prioritizes cache locality and zero-overhead lookups.
 
 ## The Data Structure: Versioned Arena
 
@@ -17,8 +17,14 @@ Samyama uses a **Versioned Arena** pattern.
 
 ```rust
 pub struct GraphStore {
-    /// Node storage: NodeId -> [Version1, Version2, ...]
+    /// Node storage (Arena with versioning: NodeId -> [Versions])
     nodes: Vec<Vec<Node>>,
+
+    /// Edge storage (Arena with versioning: EdgeId -> [Versions])
+    edges: Vec<Vec<Edge>>,
+
+    /// Outgoing edges for each node (adjacency list)
+    outgoing: Vec<Vec<EdgeId>>,
     
     /// Global transaction counter
     pub current_version: u64,
@@ -26,7 +32,7 @@ pub struct GraphStore {
 ```
 
 ### 1. The ID is the Index
-A `NodeId` in Samyama isn't a random UUID; it's a direct `u64` index into the `nodes` vector. `NodeId(5)` means "look at index 5 in the vector". This gives us **O(1)** access time without hashing.
+A `NodeId` in Samyama isn't a random UUID; it's a direct `u64` index into the `nodes` vector. `NodeId(5)` means "look at index 5 in the vector". This gives us **O(1)** access time without hashing, and ensures that all nodes are laid out contiguously in memory, which is highly cache-friendly.
 
 ### 2. The Version Chain
 The inner vector `Vec<Node>` represents the history of that node.
@@ -60,6 +66,24 @@ fn get_node_at_version(&self, id: NodeId, query_version: u64) -> Option<&Node> {
 
 Even if a writer updates the node to version 101, 102, and 103 while the query is running, the query logic will simply skip them and return version 100.
 
+## Columnar Property Storage (The "Secret Sauce")
+
+As of v0.5.0, Samyama has moved to a **Columnar Property Storage** for high-performance analytical access. While the node versions contain some basic metadata, the actual properties (e.g., "age", "salary", "name") are stored in separate, contiguous arrays (columns).
+
+```rust
+pub enum Column {
+    Int(Vec<Option<i64>>),
+    Float(Vec<Option<f64>>),
+    String(Vec<Option<String>>),
+    Bool(Vec<Option<bool>>),
+}
+```
+
+By storing all "ages" for all nodes in one block of memory, the query engine can:
+*   Perform aggregations (like `SUM(p.age)`) with near-perfect cache hits.
+*   Use SIMD instructions to process multiple properties in a single CPU cycle.
+*   Avoid "hydrating" entire node objects when only a single property is needed.
+
 ## Memory Management & cleanup
 
 "But wait," you ask, "won't memory explode if you keep every version forever?"
@@ -70,3 +94,4 @@ Samyama runs a background process that "prunes" versions that are:
 2.  Persisted to RocksDB (for cold storage).
 
 This architecture allows Samyama to serve heavy analytical queries (which might take seconds) simultaneously with high-throughput transactional writes (thousands per second) without them blocking each other.
+

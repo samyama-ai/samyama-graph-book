@@ -30,38 +30,42 @@ The optimizer transforms the Logical Plan into a **Physical Plan**. This involve
 
 ![Samyama Architecture](./images/architecture.svg)
 
-## Execution Model: Volcano vs. Vectorization
+## Execution Model: Vectorized Processing
 
-Samyama implements a hybrid execution model.
-
-### The Volcano Model (Iterator)
-Historically, databases used the "Volcano" model. Each operator implements a `next()` method that returns a single tuple (or `Record`).
+To achieve modern performance, especially for analytical workloads, Samyama implements **Vectorized Execution**. Instead of processing one row at a time (the "Volcano" model), operators process **batches** (typically 1024 rows).
 
 ```rust
-trait PhysicalOperator {
-    fn next(&mut self, store: &GraphStore) -> Option<Record>;
+pub struct RecordBatch {
+    /// A column of NodeIds for the current 'node' variable
+    pub nodes: Vec<NodeId>,
+    /// Columnar property values mapped by name
+    pub properties: HashMap<String, Column>,
+    /// Number of rows in this batch
+    pub len: usize,
 }
-```
 
-*   **Pros**: Simple, composable, low memory footprint.
-*   **Cons**: High CPU overhead due to virtual function calls per row.
-
-### Vectorized Execution (The Samyama Way)
-To achieve modern performance, especially for analytical workloads, Samyama implements **Vectorized Execution**. Instead of processing one row at a time, operators process **batches** (typically 1024 rows).
-
-```rust
 trait PhysicalOperator {
-    // Classic fallback
-    fn next(&mut self, store: &GraphStore) -> Option<Record>;
-
-    // High-performance batch path
+    /// High-performance batch path
     fn next_batch(&mut self, store: &GraphStore, batch_size: usize) -> Option<RecordBatch>;
 }
 ```
 
-The `RecordBatch` utilizes Columnar storage principles (similar to Apache Arrow) where possible, allowing the CPU to use SIMD (Single Instruction, Multiple Data) instructions to process data faster.
+The `RecordBatch` utilizes Columnar storage principles. By passing around batches of data, the query engine can:
+*   **Amortize Function Call Overhead**: Instead of calling `next()` 1,000,000 times, we call `next_batch()` 1,000 times.
+*   **Utilize CPU Cache**: Data for a single column is processed in a tight loop, maximizing L1/L2 cache efficiency.
+*   **SIMD Acceleration**: Operations like "Filter nodes where age > 30" can be performed across multiple values in a single CPU instruction (SIMD).
 
-For example, the `NodeScanOperator` in Samyama retrieves a block of 1024 `NodeId`s at once, rather than iterating one by one. This reduces the instruction cache misses and function call overhead by nearly 3 orders of magnitude.
+For example, the `NodeScanOperator` in Samyama retrieves a block of 1024 `NodeId`s at once, rather than iterating one by one. This reduces instruction cache misses and function call overhead by nearly 3 orders of magnitude.
+
+## Late Materialization: The "Delayed Hydration" Strategy
+
+One of Samyama's most impactful architectural choices is **Late Materialization**. 
+
+In traditional graph engines, matching a node often triggers the "hydration" of that node—cloning all its properties into memory. In a multi-hop traversal (e.g., `(p)-[:KNOWS]->(f)-[:LIVES_IN]->(c)`), this leads to massive CPU and memory overhead for data that might never be returned to the user.
+
+**Our Approach**: We pass around lightweight `NodeId`s within our `RecordBatch` columns. We only "materialize" (fetch properties from the columnar store) at the very last step of the pipeline (the `Project` or `Return` operator).
+
+This strategy, combined with vectorized execution, allows Samyama to perform traversals at over **1.5 million edges/second** on a single thread.
 
 ## The Operator Library
 
