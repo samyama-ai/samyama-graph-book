@@ -42,6 +42,19 @@ By storing properties in a columnar format (e.g., all "ages" together), we achie
 2.  **SIMD Integration**: Using the `packed_simd` or `std::simd` (nightly) crates, we can process 8, 16, or 32 values in a single CPU cycle.
 3.  **Late Materialization**: We avoid fetching properties from disk until the very last stage of a query, reducing I/O and CPU overhead by orders of magnitude.
 
+## Hardware Acceleration: Why wgpu?
+
+When deciding how to add GPU acceleration to Samyama, we evaluated several options including CUDA, OpenCL, and Vulkan. We ultimately chose **wgpu**, the Rust implementation of the WebGPU API.
+
+### The Portability Advantage
+Unlike CUDA (limited to NVIDIA) or OpenCL (which can be temperamental across platforms), **wgpu** offers a common abstraction layer that targets the most performant native API of the host system:
+*   **Metal** on macOS and iOS.
+*   **Vulkan** on Linux and Android.
+*   **DirectX 12** on Windows.
+
+### Native Performance with WGSL
+By writing our compute shaders in **WGSL** (WebGPU Shading Language), we can offload intensive graph algorithms like PageRank and community detection to the GPU's thousands of cores. This allows Samyama to remain "Hardware Agnostic" while still delivering hardware-native performance on any modern cloud instance or local machine with a GPU.
+
 ## Samyama vs. The Giants: A Comparison
 
 How does Samyama compare to industry leaders like Neo4j (the veteran) and RedisGraph (the high-performance alternative)?

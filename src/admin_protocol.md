@@ -1,6 +1,6 @@
 # Administrative Protocol
 
-Efficiently managing a distributed database cluster requires a specialized set of commands that go beyond data querying. Samyama Enterprise introduces the `ADMIN` command family, accessible via the standard RESP protocol.
+Samyama Enterprise introduces a dedicated **Administrative Protocol** implemented via the `ADMIN.*` RESP command set. This allows database administrators to control and monitor the server using standard Redis clients without resorting to separate APIs or CLI tools.
 
 ## Server Management
 
@@ -31,4 +31,21 @@ The `ADMIN.SLOWLOG` command tracks queries that exceed the execution time thresh
 redis-cli ADMIN.SLOWLOG 10
 ```
 
-This protocol ensures that Samyama is not a "black box," but a transparent and controllable part of the enterprise infrastructure.
+## Backup & Recovery
+
+The `ADMIN.BACKUP` suite provides high-level control over the **BackupEngine**:
+
+*   **`ADMIN.BACKUP CREATE`**: Triggers an immediate, synchronous snapshot of the database.
+*   **`ADMIN.BACKUP LIST`**: Lists all available backups, their IDs, and timestamps.
+*   **`ADMIN.BACKUP VERIFY [id]`**: Performs a checksum verification of a specific backup's data files.
+*   **`ADMIN.BACKUP RESTORE [id]`**: Restores the database to a previous state (requires a restart to finalize).
+*   **`ADMIN.BACKUP DELETE [id]`**: Manually removes a backup file and its associated metadata.
+
+## Governance & Licensing
+
+Every `ADMIN.*` call is logged to the **Audit Trail**. The system also uses these commands to interact with the **LicenseManager**:
+
+*   **`ADMIN.LICENSE`**: Returns the details of the currently active license, including the expiry date and enabled features (e.g., `gpu`, `monitoring`, `backup`).
+
+By integrating these controls into the RESP protocol, Samyama allows teams to build automated operational dashboards using their existing Redis-compatible tools and libraries.
+
