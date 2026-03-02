@@ -19,6 +19,9 @@ jobs:
         with:
           mdbook-version: 'latest'
 
+      - name: Install mdbook-mermaid
+        run: cargo install mdbook-mermaid
+
       - name: Setup Node.js (for Marp)
         uses: actions/setup-node@v4
         with:
