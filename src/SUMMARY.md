@@ -34,3 +34,4 @@
 
 # Research & Publications
 - [Research Paper: Samyama Overview](./research_paper_summary.md)
+- [Index of Implemented Papers](./implemented_papers.md)

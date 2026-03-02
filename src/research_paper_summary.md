@@ -11,7 +11,12 @@ You can download the professional PDF version of this paper (arXiv-ready) from o
 ---
 
 ## Paper Abstract
-Modern data architectures are often fragmented, requiring separate systems for transactional graphs, vector embeddings, and analytical processing. We present **Samyama**, a high-performance, distributed graph-vector database written in Rust. Samyama unifies these workloads into a single engine by combining a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor, and a dedicated analytics engine using Compressed Sparse Row (CSR) structures. Notably, Samyama integrates 15+ metaheuristic optimization solvers directly into its query language and implements "Agentic Enrichment" for autonomous graph expansion. Our evaluation shows that Samyama achieves ingestion rates of 363k nodes/s and 1.5M edges/s, with query latencies improved by 4.7x through late materialization, making it a robust foundation for next-generation AI applications.
+Modern data architectures are often fragmented, requiring separate systems for transactional graphs, vector embeddings, and analytical processing. We present **Samyama**, a high-performance, distributed graph-vector database written in Rust. Samyama unifies these workloads into a single engine by combining a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor, and a dedicated analytics engine using Compressed Sparse Row (CSR) structures. Notably, Samyama integrates 20+ metaheuristic optimization solvers directly into its query language, utilizes **wgpu-based GPU hardware acceleration** for massive analytical workloads, and implements "Agentic Enrichment" for autonomous graph expansion. Our evaluation shows that Samyama achieves ingestion rates of ~400k nodes/s and >5M edges/s, with query latencies improved by 4.7x through late materialization, making it a robust foundation for next-generation AI applications.
+
+---
+
+## Implemented Research
+For a comprehensive list of the specific academic algorithms, models, and architectures implemented directly within the Samyama codebase, please see the [Index of Implemented Papers](./implemented_papers.md).
 
 ---
 
