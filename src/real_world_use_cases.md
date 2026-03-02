@@ -42,8 +42,10 @@ We use the **Graph Algorithms** module (specifically Breadth-First Search or cus
 3.  Identify all downstream `Factory` nodes.
 4.  Calculate the "Risk Score" based on the dependency depth.
 
+> **Developer Tip:** You can run this exact scenario locally: `cargo run --example supply_chain_demo`. It builds the graph, calculates risks, and outputs a JSON tree of cascading failures.
+
 ## 3. Knowledge Graph: Clinical Trials
-**Source**: `examples/clinical_trials_demo.rs` + `examples/graph_rag_demo.rs`
+**Source**: `examples/clinical_trials_demo.rs` + `examples/knowledge_graph_demo.rs`
 
 Medical research is unstructured. Trials, drugs, and conditions are buried in text documents.
 
@@ -72,6 +74,7 @@ Security Operations Centers (SOC) deal with millions of events (logins, file acc
 **The Solution**:
 By modeling logs as a graph, security analysts can run **Pathfinding** algorithms to trace the "Lateral Movement" of an attacker.
 *   **Graph RAG**: Use vector search to find "unusual login behavior" semantically similar to known attack patterns.
+
 ## 6. Healthcare: Resource Allocation
 **Source**: `examples/clinical_trials_demo.rs` (Resource management variant)
 
@@ -88,6 +91,7 @@ To make these use cases accessible, Samyama includes a comprehensive, menu-drive
 1.  **Build** the entire engine and its dependencies.
 2.  **Start** the Samyama server with a single keystroke.
 3.  **Run** any of the embedded Rust demos (Banking, Supply Chain, etc.).
-4.  **Execute** the new **Python Client Demo** (`examples/simple_client_demo.py`), which showcases the high-performance Python bindings.
+4.  **Execute** the new **Python Client Demo** (`examples/simple_client_demo.py`), which showcases the high-performance Python bindings over the RESP protocol.
 
 This interactive tool, combined with our **Graph Visualizer** (`scripts/visualize.py`), allows developers to see the graph structure and optimization results in real-time, bridging the gap between abstract algorithms and concrete business value.
+

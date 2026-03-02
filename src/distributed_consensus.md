@@ -8,6 +8,32 @@ We use the `openraft` crate, a modern, asynchronous implementation of the Raft p
 
 Raft provides **Strong Consistency** by ensuring that a cluster of nodes agrees on the order of operations (the Log) before applying them to the state machine (the Graph).
 
+### The Raft Cluster Architecture
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Leader
+    participant Follower1
+    participant Follower2
+
+    Client->>Leader: Write: CREATE (n:Node)
+    Leader->>Leader: Append to Local Log
+    Leader->>Follower1: AppendEntries RPC
+    Leader->>Follower2: AppendEntries RPC
+    
+    Follower1-->>Leader: Ack (Log Appended)
+    
+    Note over Leader: Quorum Reached (2/3)
+    
+    Leader->>Leader: Commit to GraphStore
+    Leader-->>Client: OK
+    
+    Follower2-->>Leader: Ack (Log Appended)
+    Leader->>Follower1: Commit RPC (Async)
+    Leader->>Follower2: Commit RPC (Async)
+```
+
 ### The Raft Loop
 1.  **Leader Election**: Nodes elect a Leader.
 2.  **Log Replication**: All write requests go to the Leader. The Leader appends the request to its log and sends it to Followers.
@@ -15,6 +41,8 @@ Raft provides **Strong Consistency** by ensuring that a cluster of nodes agrees 
 4.  **Apply**: The committed entry is applied to the `GraphStore`.
 
 This ensures that if a client receives an "OK" response, the data is durable on at least $N/2 + 1$ nodes.
+
+> **Developer Tip:** You can run a fully functional 3-node in-memory cluster locally to observe Leader Election and Log Replication by running `cargo run --example cluster_demo`.
 
 ## Sharding Strategy
 

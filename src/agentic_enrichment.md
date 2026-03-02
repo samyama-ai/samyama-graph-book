@@ -15,6 +15,25 @@ Samyama can be configured with **Enrichment Policies** via `AgentConfig`. When a
 
 ![Agentic Loop](./images/agentic_loop.svg)
 
+### The Runtime Architecture
+
+Inside the engine, the agent loop is implemented in `src/agent/mod.rs` using a `tool`-based architecture. 
+
+```rust
+pub struct AgentRuntime {
+    config: AgentConfig,
+    llm_client: Arc<NLQClient>,
+    tools: HashMap<String, Box<dyn AgentTool>>,
+}
+
+#[async_trait]
+pub trait AgentTool: Send + Sync {
+    fn name(&self) -> &str;
+    fn description(&self) -> &str;
+    async fn execute(&self, input: &Value) -> Result<Value, AgentError>;
+}
+```
+
 ### Example: The Research Assistant
 Imagine you are building a medical knowledge graph. You create a node for a new drug, `Semaglutide`.
 
@@ -25,6 +44,8 @@ Imagine you are building a medical knowledge graph. You create a node for a new 
 3.  The Agent uses a `WebSearchTool` (implementing the `AgentTool` trait) to find recent clinical trials.
 4.  The Agent interacts with the LLM via `NLQClient` to parse the unstructured results into structured JSON.
 5.  The database automatically executes `CREATE` commands to link the new papers to the `Drug` node.
+
+> **Developer Tip:** You can see this GAK paradigm in action by running `cargo run --example agentic_enrichment_demo`. This demo will automatically reach out to an LLM provider, search the web for missing node properties, and execute the Cypher queries to persist them in the local graph.
 
 ## Just-In-Time (JIT) Knowledge Graphs
 
