@@ -16,15 +16,15 @@ Unlike traditional graph databases that rely heavily on scattered heap allocatio
 ```mermaid
 graph TD
     subgraph "GraphStore"
-        Nodes[nodes: Vec<Vec<Node>>]
-        Edges[edges: Vec<Vec<Edge>>]
-        Outgoing[outgoing: Vec<Vec<EdgeId>>]
-        Incoming[incoming: Vec<Vec<EdgeId>>]
+        Nodes["nodes: Vec<Vec<Node>>"]
+        Edges["edges: Vec<Vec<Edge>>"]
+        Outgoing["outgoing: Vec<Vec<EdgeId>>"]
+        Incoming["incoming: Vec<Vec<EdgeId>>"]
     end
     
     subgraph "Version Chain (Inside nodes[NodeId])"
-        V1[Version 1 (old)] --> V2[Version 2]
-        V2 --> V3[Version 3 (latest)]
+        V1["Version 1 (old)"] --> V2["Version 2"]
+        V2 --> V3["Version 3 (latest)"]
     end
     
     Nodes -.-> V1
@@ -66,9 +66,9 @@ Beyond the core topology, `GraphStore` integrates dedicated sub-systems for high
 ```mermaid
 graph LR
     subgraph "ColumnStore"
-        Age[Age Column: Vec<i64>]
-        Name[Name Column: Vec<String>]
-        Salary[Salary Column: Vec<f64>]
+        Age["Age Column: Vec<i64>"]
+        Name["Name Column: Vec<String>"]
+        Salary["Salary Column: Vec<f64>"]
     end
     
     Query[Query Engine] -- "SIMD Aggregation" --> Age

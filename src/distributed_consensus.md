@@ -17,21 +17,21 @@ sequenceDiagram
     participant Follower1
     participant Follower2
 
-    Client->>Leader: Write: CREATE (n:Node)
-    Leader->>Leader: Append to Local Log
-    Leader->>Follower1: AppendEntries RPC
-    Leader->>Follower2: AppendEntries RPC
+    Client->>Leader: "Write: CREATE (n:Node)"
+    Leader->>Leader: "Append to Local Log"
+    Leader->>Follower1: "AppendEntries RPC"
+    Leader->>Follower2: "AppendEntries RPC"
     
-    Follower1-->>Leader: Ack (Log Appended)
+    Follower1-->>Leader: "Ack (Log Appended)"
     
-    Note over Leader: Quorum Reached (2/3)
+    Note over Leader: "Quorum Reached (2/3)"
     
-    Leader->>Leader: Commit to GraphStore
-    Leader-->>Client: OK
+    Leader->>Leader: "Commit to GraphStore"
+    Leader-->>Client: "OK"
     
-    Follower2-->>Leader: Ack (Log Appended)
-    Leader->>Follower1: Commit RPC (Async)
-    Leader->>Follower2: Commit RPC (Async)
+    Follower2-->>Leader: "Ack (Log Appended)"
+    Leader->>Follower1: "Commit RPC (Async)"
+    Leader->>Follower2: "Commit RPC (Async)"
 ```
 
 ### The Raft Loop

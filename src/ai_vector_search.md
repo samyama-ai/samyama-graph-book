@@ -38,11 +38,11 @@ If using a pure Vector DB:
 
 ```mermaid
 graph TD
-    Query[Query Vector: 'Breach of Contract'] --> HNSW[HNSW Vector Index]
+    Query["Query Vector: 'Breach of Contract'"] --> HNSW[HNSW Vector Index]
     HNSW -- "Returns Top K NodeIds (Pre-filtering)" --> Engine[Query Engine]
     
     Engine -- "Traverse Outgoing Edges" --> Adjacency[GraphStore Adjacency List]
-    Adjacency -- "Filter by Label/Property" --> Filter[Judge = 'Scalia']
+    Adjacency -- "Filter by Label/Property" --> Filter["Judge = 'Scalia'"]
     
     Filter -- "Yield Results" --> LLM[LLM Context Window]
 ```

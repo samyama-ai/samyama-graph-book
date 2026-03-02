@@ -14,8 +14,8 @@ graph TD
     
     subgraph "Cost-Based Optimizer"
         Logical -- "Generates Logical Plan" --> CBO[Optimizer]
-        CBO -. "Reads GraphStatistics" .-> Stats[(GraphStatistics)]
-        CBO -- "Chooses Index over Full Scan" --> Physical[Physical Execution Plan]
+        CBO -. "Reads GraphStatistics" .-> Stats["GraphStatistics"]
+        CBO -- "Chooses Index over Full Scan" --> Physical["Physical Execution Plan"]
     end
     
     Physical --> Exec[QueryExecutor]

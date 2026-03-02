@@ -42,10 +42,10 @@ How do you store a graph (nodes and edges) in a Key-Value store? We use **Column
 ```mermaid
 graph LR
     DB[(RocksDB Instance)]
-    DB --> CF_Default[CF: default <br> Metadata & Versioning]
-    DB --> CF_Nodes[CF: nodes <br> NodeId -> StoredNode]
-    DB --> CF_Edges[CF: edges <br> EdgeId -> StoredEdge]
-    DB --> CF_Indices[CF: indices <br> B-Tree Property Indices]
+    DB --> CF_Default["CF: default <br> Metadata & Versioning"]
+    DB --> CF_Nodes["CF: nodes <br> NodeId -> StoredNode"]
+    DB --> CF_Edges["CF: edges <br> EdgeId -> StoredEdge"]
+    DB --> CF_Indices["CF: indices <br> B-Tree Property Indices"]
 ```
 
 ### Key Structure
