@@ -22,18 +22,21 @@ Currently, we shard by **Tenant**. This is perfect for SaaS but limits the size 
 
 **The Plan**: We are investigating **METIS** and streaming partitioning algorithms to intelligently distribute nodes based on community structure, ensuring that "friends stay together" on the same physical server.
 
-## 3. Hardware Acceleration
-Rust gives us CPU efficiency, but for massive Vector Search and Graph Analytics, we need more power.
+## 3. Distributed Query Execution (Scatter-Gather)
+To complement Graph-Level Sharding, the query engine must evolve from a single-node vectorized iterator to a distributed execution framework.
+*   **Query Coordinator**: Will partition the physical plan into sub-plans.
+*   **Workers**: Execute local traversals.
+*   **Shuffle/Exchange Operators**: Pass intermediate `RecordBatch` streams across the network using Arrow Flight RPC.
 
-**GPU Acceleration**:
-*   Using `wgpu` or `CUDA` to run the `samyama-graph-algorithms` (PageRank, Matrix Multiplication) directly on the GPU.
-*   Offloading Vector HNSW index construction to the GPU.
+## 4. Native Graph Neural Networks (GNNs)
+While we currently support powerful vector search (HNSW) and metaheuristic optimization, the next step in "predictive power" is natively training and serving Graph Neural Networks directly within the database.
+*   **Goal**: Run `CALL algo.gnn.predict_link('Person', 'KNOWS')` without exporting data to Python and PyTorch Geometric.
 
 ## Conclusion
 
 Samyama started as a question: "Can we do better?"
 The answer, we believe, is "Yes."
 
-By fusing the transactional integrity of RocksDB, the safety of Rust, and the semantic power of AI, we are building a database engine for the next decade of intelligent applications.
+By fusing the transactional integrity of RocksDB, the safety of Rust, the massive parallelism of GPU compute shaders, and the semantic power of AI, we are building a database engine for the next decade of intelligent applications.
 
 Thank you for exploring the architecture of Samyama with us.

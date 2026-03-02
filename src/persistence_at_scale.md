@@ -14,31 +14,43 @@ RocksDB, originally forked from Google's LevelDB by Facebook, is an embedded key
 
 Graph workloads are write-heavy. Creating a single "relationship" between two nodes might involve updating adjacency lists on both ends, updating indices, and writing to the transaction log.
 
-Traditional B-Tree storage (used by Postgres, MySQL) suffers from **Write Amplification**—changing a few bytes can require rewriting entire 4KB or 8KB pages.
+Traditional B-Tree storage suffers from **Write Amplification**—changing a few bytes can require rewriting entire 4KB or 8KB pages.
 
-LSM-Trees solve this by turning random writes into sequential ones:
-1.  **WAL (Write-Ahead Log)**: Data is appended to a log file for durability.
-2.  **MemTable**: Data is written to an in-memory sorted structure.
-3.  **SSTables**: When the MemTable is full, it is flushed to disk as an immutable Sorted String Table.
-4.  **Compaction**: Background threads merge old SSTables, removing deleted data and optimizing storage.
+LSM-Trees solve this by turning random writes into sequential ones. Here is how Samyama flows data into RocksDB:
 
-This architecture allows Samyama to sustain ingestion rates of over **800,000 nodes/second**.
+```mermaid
+graph TD
+    Client[Client Write Request] --> WAL[(Write-Ahead Log)]
+    WAL --> MemTable[In-Memory MemTable]
+    MemTable -- "Flushes when full (64MB)" --> L0[SSTable Level 0]
+    L0 -- "Background Compaction" --> L1[SSTable Level 1]
+    L1 -- "Background Compaction" --> L2[SSTable Level 2]
+    
+    style WAL fill:#f9f,stroke:#333,stroke-width:2px
+    style MemTable fill:#bbf,stroke:#333,stroke-width:2px
+    style L0 fill:#dfd,stroke:#333
+    style L1 fill:#dfd,stroke:#333
+    style L2 fill:#dfd,stroke:#333
+```
+
+This architecture allows Samyama to sustain massive ingestion rates, as seen in `benches/full_benchmark.rs` where we hit **> 800,000 nodes/second** in raw write throughput.
 
 ## Schema Design: Mapping Graphs to Key-Value
 
-How do you store a graph (nodes and edges) in a Key-Value store? We use **Column Families** (logical partitions within RocksDB) to separate different types of data.
+How do you store a graph (nodes and edges) in a Key-Value store? We use **Column Families** (logical partitions within RocksDB) to separate different types of data, preventing them from slowing each other down during compaction.
 
-### Column Families
-
-1.  **`default`**: Metadata (versioning, configurations).
-2.  **`nodes`**: Stores the actual node data.
-3.  **`edges`**: Stores edge data.
-4.  **`indices`**: Stores property indices (e.g., lookup by name).
+```mermaid
+graph LR
+    DB[(RocksDB Instance)]
+    DB --> CF_Default[CF: default <br> Metadata & Versioning]
+    DB --> CF_Nodes[CF: nodes <br> NodeId -> StoredNode]
+    DB --> CF_Edges[CF: edges <br> EdgeId -> StoredEdge]
+    DB --> CF_Indices[CF: indices <br> B-Tree Property Indices]
+```
 
 ### Key Structure
 
 We use a simple, efficient binary encoding for keys. All IDs are `u64` integers.
-
 *   **Node Key**: `[u8; 8]` -> Big-Endian representation of `NodeId`.
 *   **Edge Key**: `[u8; 8]` -> Big-Endian representation of `EdgeId`.
 
@@ -69,10 +81,7 @@ pub fn open(path: impl AsRef<Path>) -> StorageResult<Self> {
     opts.create_if_missing(true);
     
     // Performance Tuning
-    // 64MB Write Buffer allows larger batches before flushing
-    opts.set_write_buffer_size(64 * 1024 * 1024); 
-    
-    // Use LZ4 compression for speed
+    opts.set_write_buffer_size(64 * 1024 * 1024); // 64MB batches
     opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
 
     let cf_descriptors = vec![
@@ -83,9 +92,11 @@ pub fn open(path: impl AsRef<Path>) -> StorageResult<Self> {
     ];
 
     let db = DB::open_cf_descriptors(&opts, &path, cf_descriptors)?;
-    Ok(Self { db: Arc::new(db), ... })
+    Ok(Self { db: Arc::new(db), /* ... */ })
 }
 ```
+
+> **Developer Tip:** Check out `examples/persistence_demo.rs` to see a full working example of how to configure Samyama to persist data to disk, write millions of edges, shut down the server, and seamlessly recover state on the next boot.
 
 ## Durability vs. Performance
 

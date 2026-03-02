@@ -13,6 +13,23 @@ Samyama implements **Multi-Version Concurrency Control (MVCC)** using a speciali
 
 Unlike traditional graph databases that rely heavily on scattered heap allocations (`Box<Node>`, `Rc<RefCell<Node>>`), Samyama uses a **Versioned Arena** pattern defined centrally in `src/graph/store.rs`.
 
+```mermaid
+graph TD
+    subgraph "GraphStore"
+        Nodes[nodes: Vec<Vec<Node>>]
+        Edges[edges: Vec<Vec<Edge>>]
+        Outgoing[outgoing: Vec<Vec<EdgeId>>]
+        Incoming[incoming: Vec<Vec<EdgeId>>]
+    end
+    
+    subgraph "Version Chain (Inside nodes[NodeId])"
+        V1[Version 1 (old)] --> V2[Version 2]
+        V2 --> V3[Version 3 (latest)]
+    end
+    
+    Nodes -.-> V1
+```
+
 ```rust
 pub struct GraphStore {
     /// Node storage (Arena with versioning: NodeId -> [Versions])
@@ -40,9 +57,23 @@ A `NodeId` in Samyama is not a random UUID; it's a direct `u64` index into the `
 ### 2. The Version Chain & Snapshot Isolation
 The inner vector `Vec<Node>` and `Vec<Edge>` represents the history of that entity. When a query starts, it grabs the `current_version`. The engine iterates backward over the history chain to find the newest version `<= query_version`, guaranteeing **Snapshot Isolation** without holding read locks.
 
+> **Developer Tip**: See `benches/mvcc_benchmark.rs` to observe how Samyama maintains read latencies <5µs even under heavy concurrent write pressure due to this lock-free snapshot mechanism.
+
 ## Columnar Property Storage & Indices
 
 Beyond the core topology, `GraphStore` integrates dedicated sub-systems for high-performance access:
+
+```mermaid
+graph LR
+    subgraph "ColumnStore"
+        Age[Age Column: Vec<i64>]
+        Name[Name Column: Vec<String>]
+        Salary[Salary Column: Vec<f64>]
+    end
+    
+    Query[Query Engine] -- "SIMD Aggregation" --> Age
+    Query -- "Late Materialization" --> Name
+```
 
 ```rust
     /// Vector indices manager
@@ -58,7 +89,7 @@ Beyond the core topology, `GraphStore` integrates dedicated sub-systems for high
     pub edge_columns: ColumnStore,
 ```
 
-By separating structural metadata (topology, version) from the actual property values (stored in `ColumnStore`), Samyama enables late materialization. The engine can traverse millions of relationships traversing only the `outgoing` adjacency lists, and only query the `node_columns` when the user requests specific attributes. This drastically reduces CPU cache eviction.
+By separating structural metadata (topology, version) from the actual property values (stored in `ColumnStore`), Samyama enables **Late Materialization**. The engine can traverse millions of relationships scanning only the `outgoing` adjacency lists, and query the `node_columns` *only* when the user requests specific attributes in the `RETURN` clause. This drastically reduces CPU cache eviction.
 
 ## Graph Statistics for Optimization
 
