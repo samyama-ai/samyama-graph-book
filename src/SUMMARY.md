@@ -1,6 +1,8 @@
 # Summary
 
 [Preface](./preface.md)
+- [About the Project & Author](./about.md)
+- [Samyama Overview Slides (HTML)](./slides.html)
 
 # Part I: The Foundation (Storage & State)
 - [Persistence at Scale](./persistence_at_scale.md)

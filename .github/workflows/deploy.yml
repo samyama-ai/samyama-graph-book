@@ -18,10 +18,20 @@ jobs:
         uses: peaceiris/actions-mdbook@v1
         with:
           mdbook-version: 'latest'
-          # mdbook-pdf requires headless chrome, keeping it simple for now with HTML
-      
+
+      - name: Setup Node.js (for Marp)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Marp CLI
+        run: npm install -g @marp-team/marp-cli
+
       - name: Build Book
-        run: mdbook build
+        run: |
+          mdbook build
+          # Generate HTML slides and move into the book build
+          marp slides.md -o book/slides.html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
