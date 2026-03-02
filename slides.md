@@ -99,4 +99,4 @@ Samyama is not just a database; it is an active knowledge partner.
 - **Open Source Core**: High performance, zero GC pauses, developer-friendly.
 - **Enterprise Ready**: GPU-accelerated, highly observable, and durable.
 
-*https://github.com/samyama-ai/samyama-graph*
+*https://x.com/Samyama_AI*

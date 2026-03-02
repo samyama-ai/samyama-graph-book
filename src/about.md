@@ -12,7 +12,7 @@ The architecture and implementation of Samyama Graph, as well as this technical 
 
 Sandeep is a specialist in high-performance Rust systems, distributed consensus, and the application of metaheuristic optimization to large-scale graph data. He is the primary maintainer of the Samyama open-source core and the lead architect behind the Enterprise Hardware-Accelerated edition.
 
-**Connect with the Author:**
+**Connect with the Project & Author:**
 - **LinkedIn:** [https://www.linkedin.com/in/sandeepkunkunuru/](https://www.linkedin.com/in/sandeepkunkunuru/)
-- **GitHub:** [@Madhulatha-Sandeep](https://github.com/Madhulatha-Sandeep)
-- **Twitter/X:** [@SandeepKunkunuru](https://twitter.com/SandeepKunkunuru)
+- **GitHub:** [https://github.com/samyama-ai/samyama-graph](https://github.com/samyama-ai/samyama-graph)
+- **Twitter/X:** [https://x.com/Samyama_AI](https://x.com/Samyama_AI)
