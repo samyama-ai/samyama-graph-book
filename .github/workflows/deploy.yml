@@ -20,7 +20,12 @@ jobs:
           mdbook-version: 'latest'
 
       - name: Install mdbook-mermaid
-        run: cargo install mdbook-mermaid
+        run: |
+          curl -sSL https://github.com/badboy/mdbook-mermaid/releases/download/v0.14.0/mdbook-mermaid-v0.14.0-x86_64-unknown-linux-gnu.tar.gz | tar -xz
+          chmod +x mdbook-mermaid
+          sudo mv mdbook-mermaid /usr/local/bin/
+          # Initialize mermaid support in the book
+          mdbook-mermaid install .
 
       - name: Setup Node.js (for Marp)
         uses: actions/setup-node@v4
