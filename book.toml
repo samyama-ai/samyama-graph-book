@@ -7,6 +7,5 @@ title = "Building Samyama: The Architecture of a Modern Rust Graph Database"
 [output.html]
 git-repository-url = "https://github.com/samyama-ai/samyama-graph"
 edit-url-template = "https://github.com/samyama-ai/samyama-graph-book/edit/main/{path}"
-
-[preprocessor.mermaid]
-command = "mdbook-mermaid"
+additional-js = []
+additional-css = []
