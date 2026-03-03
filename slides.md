@@ -29,7 +29,7 @@ A single, high-performance binary that unifies:
 - **Property Graph Engine** (OpenCypher & RESP)
 - **Vector Search** (Native HNSW)
 - **Analytics Engine** (Compressed Sparse Row)
-- **In-Database Optimization** (20+ Metaheuristic Solvers)
+- **In-Database Optimization** (22 Metaheuristic Solvers)
 
 ---
 
@@ -57,7 +57,7 @@ CALL algo.or.solve({
   population_size: 50
 }) YIELD fitness, variables
 ```
-**20+ algorithms** implemented natively in Rust via Rayon (Jaya, Rao, PSO, DE, NSGA-II).
+**22 algorithms** implemented natively in Rust via Rayon (Jaya, Rao, PSO, DE, NSGA-II).
 
 ---
 
@@ -73,7 +73,7 @@ Beyond Retrieval-Augmented Generation (RAG). Introducing **Generation-Augmented 
 ## Samyama Enterprise Edition
 Built for mission-critical, high-availability deployments.
 
-- **Hardware Acceleration**: WGSL compute shaders via `wgpu` targeting Metal, Vulkan, and DX12. Massively parallel PageRank, CDLP, and LCC.
+- **Hardware Acceleration**: WGSL compute shaders via `wgpu` targeting Metal, Vulkan, and DX12. Massively parallel PageRank, CDLP, LCC, and PCA.
 - **Advanced HA**: HTTP/2 Raft transport, automatic snapshot streaming, and role tracking.
 - **Point-in-Time Recovery**: Full and incremental RocksDB backups.
 - **Observability**: Prometheus metrics, health probes, audit trails, and `ADMIN.*` RESP commands.
@@ -90,6 +90,37 @@ Built for mission-critical, high-availability deployments.
 | **Vector Search (10K)**| 15K QPS | GPU Batch Re-ranking |
 
 *(GPU crossover threshold is ~100k nodes where parallelism beats memory transfer overhead)*
+
+---
+
+---
+
+## Developer Ecosystem (v0.5.12)
+
+- **Rust SDK**: `SamyamaClient` trait with `EmbeddedClient` (in-process) and `RemoteClient` (HTTP)
+- **Python SDK**: PyO3 bindings — `SamyamaClient.embedded()` / `.connect(url)`
+- **TypeScript SDK**: Pure TS with native `fetch` — `SamyamaClient.connectHttp(url)`
+- **CLI**: `samyama-cli query|status|ping|shell` with table/json/csv output
+- **OpenAPI**: `POST /api/query`, `GET /api/status`
+
+---
+
+## RDF & SPARQL Support
+
+- **RDF Data Model**: `oxrdf`-based triples, quads, named graphs
+- **Serialization**: Turtle, N-Triples, RDF/XML, JSON-LD (write)
+- **Triple Store**: In-memory with SPO/POS/OSP indices for O(1) pattern lookups
+- **SPARQL**: Parser infrastructure via `spargebra`; query execution in progress
+- **Property Graph ↔ RDF**: Bidirectional mapping framework
+
+---
+
+## PCA & Dimensionality Reduction
+
+- **Randomized SVD** (Halko-Martinsson-Tropp): Default solver for large datasets (n > 500)
+- **Power Iteration**: Legacy solver with Gram-Schmidt re-orthogonalization
+- **GPU PCA** (Enterprise): 5 WGSL shaders with fused normalize, tiled covariance
+- **SDK Access**: `client.pca("Person", &["age", "income"], config)`
 
 ---
 

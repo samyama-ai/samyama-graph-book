@@ -85,6 +85,16 @@ Samyama models each department as a node with properties for current staffing (D
 *   **Optimization**: Using the **Jaya** algorithm, Samyama calculates the optimal distribution of 1,000+ staff members across the entire hospital network.
 *   **The Result**: Minimize "Total Weighted Wait Time" while ensuring no department falls below "Minimum Staffing" regulations.
 
+## 7. Social Network Analysis
+**Source**: `examples/social_network_demo.rs`
+
+Model and analyze social graphs with community detection, influence propagation, and friend-of-friend recommendations. Demonstrates how PageRank and CDLP algorithms identify key influencers and natural communities within large networks.
+
+## 8. PCA & Dimensionality Reduction
+**Source**: `examples/pca_demo.rs`
+
+Demonstrates Principal Component Analysis on node feature vectors. Reduces high-dimensional property data (e.g., user profiles with 10+ numeric attributes) down to 2-3 principal components for visualization and clustering. Showcases both the Randomized SVD and Power Iteration solvers.
+
 ## The Interactive Experience: `run_all_examples.sh`
 
 To make these use cases accessible, Samyama includes a comprehensive, menu-driven script: `scripts/run_all_examples.sh`. This script allows users to:

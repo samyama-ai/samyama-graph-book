@@ -20,7 +20,7 @@ The "Cautionary Tale of InfluxDB" served as a warning to us. Originally written 
 
 We chose an **LSM-Tree** (RocksDB) over a **B-Tree** (LMDB). 
 
-Graph workloads are naturally write-heavy—every relationship creation involves multiple index updates. B-Trees suffer from "Write Amplification," where changing a few bytes requires rewriting entire pages. RocksDB turns these random writes into sequential appends, allowing Samyama to sustain over **350,000 node writes per second**, significantly outperforming LMDB in write-heavy scenarios.
+Graph workloads are naturally write-heavy—every relationship creation involves multiple index updates. B-Trees suffer from "Write Amplification," where changing a few bytes requires rewriting entire pages. RocksDB turns these random writes into sequential appends, allowing Samyama to sustain over **255,000 node writes per second** (CPU) and over **412,000 node writes per second** (GPU-accelerated), significantly outperforming LMDB in write-heavy scenarios.
 
 ## Optimized Serialization: Bincode
 
@@ -39,7 +39,7 @@ For property-heavy analytical queries, even Bincode is too slow because it still
 
 By storing properties in a columnar format (e.g., all "ages" together), we achieve **Mechanical Sympathy**:
 1.  **Cache Locality**: The CPU can prefetch thousands of values at once into the L1 cache.
-2.  **SIMD Integration**: Using the `packed_simd` or `std::simd` (nightly) crates, we can process 8, 16, or 32 values in a single CPU cycle.
+2.  **SIMD-Friendly Layout**: The columnar layout is designed to be SIMD-friendly, enabling auto-vectorization by the Rust compiler and future integration with explicit SIMD intrinsics.
 3.  **Late Materialization**: We avoid fetching properties from disk until the very last stage of a query, reducing I/O and CPU overhead by orders of magnitude.
 
 ## Hardware Acceleration: Why wgpu?
@@ -57,18 +57,18 @@ By writing our compute shaders in **WGSL** (WebGPU Shading Language), we can off
 
 ## Samyama vs. The Giants: A Comparison
 
-How does Samyama compare to industry leaders like Neo4j (the veteran) and RedisGraph (the high-performance alternative)?
+How does Samyama compare to industry leaders like Neo4j (the veteran) and FalkorDB (the high-performance alternative, formerly RedisGraph)?
 
-| Feature | Neo4j | RedisGraph | Samyama |
+| Feature | Neo4j | FalkorDB | Samyama |
 | :--- | :--- | :--- | :--- |
 | **Language** | Java (JVM) | C (Redis Module) | **Rust (Native)** |
 | **Storage Model** | Pointer-heavy (Adjacency) | Sparse Matrices (GraphBLAS) | **Hybrid (MVCC + CSR + Columnar)** |
-| **Execution** | Interpreted/JIT | Matrix Math | **Vectorized (SIMD-Accelerated)** |
+| **Execution** | Interpreted/JIT | Matrix Math | **Vectorized (Auto-vectorized)** |
 | **Vector Search** | Bolt-on (Index) | ❌ | **Native (HNSW)** |
 | **Optimization** | ❌ | ❌ | **Built-in (Metaheuristics)** |
 | **Memory Management** | GC-Heavy | Fixed (Redis) | **Zero-Pause (Arena/RAII)** |
 
 ### Why Samyama Wins on Modern Hardware
 *   **Neo4j** suffers from the "GC Tax"—large heaps lead to long garbage collection pauses. Its pointer-heavy structure is also prone to cache misses during multi-hop traversals.
-*   **RedisGraph** is fast but its dependence on GraphBLAS (Matrix Math) makes it less flexible for complex property-based Cypher queries. It also lacks native AI/Vector capabilities.
-*   **Samyama** represents a "Third Way": The flexibility of a property graph, the speed of native Rust, and the analytical power of a dedicated CSR-based engine. By focusing on **Mechanical Sympathy** (aligning with CPU cache/SIMD), Samyama delivers 10x the performance with 1/4 the memory footprint of traditional engines.
+*   **FalkorDB** (formerly RedisGraph, which was deprecated in 2023) is fast but its dependence on GraphBLAS (Matrix Math) makes it less flexible for complex property-based Cypher queries. It also lacks native AI/Vector capabilities.
+*   **Samyama** represents a "Third Way": The flexibility of a property graph, the speed of native Rust, and the analytical power of a dedicated CSR-based engine. By focusing on **Mechanical Sympathy** (aligning with CPU cache lines), Samyama delivers 10x the performance with 1/4 the memory footprint of traditional engines.

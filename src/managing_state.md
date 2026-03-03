@@ -47,7 +47,9 @@ pub struct GraphStore {
     /// Current global version for MVCC
     pub current_version: u64,
     
-    // ... specialized index and column managers ...
+    // Additional fields omitted for clarity:
+    // free_id_pools, label_index, edge_type_index,
+    // cardinality_stats, tenant metadata, etc.
 }
 ```
 

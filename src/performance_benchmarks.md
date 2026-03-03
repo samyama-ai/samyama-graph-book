@@ -19,7 +19,7 @@ Samyama achieves industry-leading ingestion rates on commodity hardware:
 
 ## GPU Acceleration: The Crossover Point
 
-A key finding in the v0.5.0-alpha.1 benchmarks is the impact of memory transfer overhead on GPU acceleration.
+A key finding in the v0.5.12 benchmarks is the impact of memory transfer overhead on GPU acceleration.
 
 | Algorithm | Scale (Nodes) | CPU Compute | GPU (inc. Transfer) | Speedup |
 | :--- | :---: | :---: | :---: | :---: |
@@ -62,3 +62,5 @@ Profiling our query engine reveals a shift in where time is spent:
 | **Execute (Iteration)** | **<1ms** | **2%** |
 
 **Conclusion**: The actual execution of the graph traversal is sub-millisecond. The remaining overhead is in the language frontend (parsing and planning). Our roadmap includes **AST Caching** and **Plan Memoization** to bring warm-query latency down to the ~10ms range.
+
+> **Note**: These timings reflect cold-start conditions (first query execution). Subsequent queries benefit from OS-level page cache and instruction cache warmth, reducing total latency significantly.

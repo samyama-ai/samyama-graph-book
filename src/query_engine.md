@@ -32,7 +32,7 @@ Samyama implements a hybrid **Volcano Iterator model** utilizing **Vectorized Ex
 ```mermaid
 graph LR
     subgraph "Vectorized Pipeline"
-        Scan[IndexScanOperator] -- "Batch of 1024 NodeIds" --> Expand[MatchCreateEdgeOperator]
+        Scan[IndexScanOperator] -- "Batch of 1024 NodeIds" --> Expand[ExpandOperator]
         Expand -- "Batch of (SrcId, DstId)" --> Filter[FilterOperator]
         Filter -- "Filtered Batch" --> Project[ProjectOperator]
     end
@@ -50,7 +50,24 @@ pub trait PhysicalOperator {
 }
 ```
 
-Instead of fetching one row at a time, each `PhysicalOperator` (like `MatchCreateEdgeOperator`, `CartesianProductOperator`, `NodeScanOperator`) processes a `RecordBatch`. 
+*(Simplified for clarity; the actual trait includes error handling via `ExecutionResult` and additional methods like `describe()` and `name()` for plan introspection.)*
+
+Instead of fetching one row at a time, each `PhysicalOperator` processes a `RecordBatch`.
+
+### All 28 Physical Operators
+
+Samyama implements 28 physical operators, organized by function:
+
+| Category | Operators |
+| :--- | :--- |
+| **Scan** | `NodeScanOperator`, `IndexScanOperator` |
+| **Traversal** | `ExpandOperator`, `ShortestPathOperator` |
+| **Filter & Transform** | `FilterOperator`, `ProjectOperator`, `UnwindOperator`, `WithBarrierOperator` |
+| **Join** | `JoinOperator`, `LeftOuterJoinOperator`, `CartesianProductOperator` |
+| **Aggregation & Sort** | `AggregateOperator`, `SortOperator`, `LimitOperator`, `SkipOperator` |
+| **Write (Mutating)** | `CreateNodeOperator`, `CreateEdgeOperator`, `CreateNodesAndEdgesOperator`, `MatchCreateEdgeOperator`, `MergeOperator`, `DeleteOperator`, `SetPropertyOperator`, `RemovePropertyOperator`, `ForeachOperator` |
+| **Index** | `CreateIndexOperator`, `CreateVectorIndexOperator` |
+| **Specialized** | `VectorSearchOperator`, `AlgorithmOperator` | 
 
 By processing batches:
 *   **Amortized Overhead**: Calling virtual functions per batch instead of per row drops L1 instruction cache misses significantly.

@@ -33,7 +33,7 @@ graph TD
     style L2 fill:#dfd,stroke:#333
 ```
 
-This architecture allows Samyama to sustain massive ingestion rates, as seen in `benches/full_benchmark.rs` where we hit **> 800,000 nodes/second** in raw write throughput.
+This architecture allows Samyama to sustain massive ingestion rates, as seen in `benches/full_benchmark.rs` where we achieve over **250,000 nodes/second** (CPU) and over **400,000 nodes/second** (GPU-accelerated) in raw write throughput.
 
 ## Schema Design: Mapping Graphs to Key-Value
 

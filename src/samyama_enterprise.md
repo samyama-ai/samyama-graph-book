@@ -41,11 +41,20 @@ Moving a database from a developer's laptop to a production cluster involves sol
 
 Samyama Enterprise includes hardware-accelerated compute via the `samyama-gpu` crate. Built on **wgpu**, it provides cross-platform acceleration (Metal on macOS, Vulkan on Linux, DX12 on Windows).
 
-*   **GPU Algorithms**: PageRank, CDLP (Label Propagation), LCC (Clustering Coefficient), and Triangle Counting are implemented as WGSL compute shaders.
+*   **GPU Algorithms**: PageRank, CDLP (Label Propagation), LCC (Clustering Coefficient), Triangle Counting, and PCA (Principal Component Analysis) are implemented as WGSL compute shaders.
 *   **Vector Distance**: Optimized cosine distance and inner product shaders for batch re-ranking after HNSW retrieval.
 *   **Query Operators**: Parallel reduction for `SUM` aggregations and bitonic sort for `ORDER BY` on large result sets (>10,000 rows).
 
-> **Mechanical Sympathy Note**: The engine uses a `MIN_GPU_NODES` threshold (default 1,000). For smaller subgraphs, the CPU remains faster due to memory transfer overhead. The GPU parallelism dominates once the graph scale exceeds ~100,000 nodes.
+> **Mechanical Sympathy Note**: The engine uses a `MIN_GPU_NODES` threshold (default 1,000). For PCA specifically, the threshold is higher (`MIN_GPU_PCA = 50,000` nodes and `d > 32` dimensions) due to the additional overhead of covariance matrix computation. For smaller subgraphs, the CPU remains faster due to memory transfer overhead. The GPU parallelism dominates once the graph scale exceeds ~100,000 nodes.
+
+### GPU PCA Shaders
+
+PCA on the GPU uses five specialized WGSL compute shaders:
+1. **`pca_mean.wgsl`**: Parallel mean computation across feature columns.
+2. **`pca_center.wgsl`**: Mean-centering the data matrix.
+3. **`pca_covariance.wgsl`**: Tiled covariance matrix computation (processes 64 samples per tile for cache efficiency).
+4. **`pca_power_iter.wgsl`**: Power iteration for eigenvector extraction.
+5. **`pca_power_iter_norm.wgsl`**: Fused power iteration with in-GPU normalization—computes matrix-vector multiply, parallel reduction for the norm, and normalization in a single dispatch, avoiding costly CPU↔GPU synchronization per iteration.
 
 ## 2. Monitoring & Observability
 

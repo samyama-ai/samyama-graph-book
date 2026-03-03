@@ -44,6 +44,13 @@ The engine natively supports an exhaustive suite of Operation Research (OR) and 
 
 *(Additional Swarm & Physics-based solvers implemented: BAT, Cuckoo Search, Firefly, FPA, GSA, SA, HS, BMR, BWR)*
 
+## Statistical & Dimensionality Reduction
+*   **Principal Component Analysis (PCA) — Randomized SVD**
+    *   *Paper:* "Finding structure with randomness: Probabilistic algorithms for constructing approximate matrix decompositions" (Halko, Martinsson & Tropp, 2011)
+    *   *Implementation:* `crates/samyama-graph-algorithms/src/pca.rs` — Gaussian random projection → power iterations → QR factorization → small SVD.
+
 ## Hardware Acceleration (`samyama-gpu`)
 *   **Parallel Graph Algorithms on GPU**
-    *   *Implementation:* WGSL compute shaders for PageRank, Triangle Counting, CDLP, and LCC targeting WebGPU (Metal, Vulkan, DX12).
+    *   *Implementation:* WGSL compute shaders for PageRank, Triangle Counting, CDLP, LCC, and PCA targeting WebGPU (Metal, Vulkan, DX12).
+*   **GPU PCA (Fused Power Iteration)**
+    *   *Implementation:* Five WGSL shaders (`pca_mean`, `pca_center`, `pca_covariance`, `pca_power_iter`, `pca_power_iter_norm`) with tiled covariance computation and fused normalize-in-GPU to avoid CPU↔GPU round-trips per iteration.

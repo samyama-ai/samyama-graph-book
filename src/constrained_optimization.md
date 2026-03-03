@@ -1,6 +1,8 @@
 # Constrained Multi-Objective Optimization
 
-While the Community Edition supports basic multi-objective optimization, **Samyama Enterprise** introduces production-grade support for complex real-world constraints using the **Constrained Dominance Principle**.
+The `samyama-optimization` crate (included in the open-source Community Edition) provides full support for multi-objective optimization, including **NSGA-II** and **MOTLBO** with the **Constrained Dominance Principle** for handling complex real-world constraints.
+
+> **Note**: All 22 metaheuristic solvers—including the multi-objective solvers NSGA-II and MOTLBO—are available in the OSS edition. The Enterprise edition adds GPU-accelerated constraint evaluation for large-scale problems.
 
 ## The Reality of Constraints
 
@@ -18,7 +20,7 @@ Samyama Enterprise implements this principle in its **NSGA-II** and **MOTLBO** s
 
 ## Defining Constraints in Cypher
 
-The `algo.or.solve` procedure in Enterprise allows for explicit constraint definitions:
+The `algo.or.solve` procedure allows for explicit constraint definitions:
 
 ```cypher
 CALL algo.or.solve({

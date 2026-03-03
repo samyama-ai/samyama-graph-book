@@ -1,6 +1,6 @@
-# Query Optimization (Explain & Profile)
+# Query Optimization (Explain)
 
-As queries grow in complexity—involving multiple hops, filters, and vector searches—it becomes impossible to optimize performance by guessing. Samyama provides two powerful tools for query introspection: `EXPLAIN` and `PROFILE`.
+As queries grow in complexity—involving multiple hops, filters, and vector searches—it becomes impossible to optimize performance by guessing. Samyama provides `EXPLAIN` for query introspection.
 
 ## EXPLAIN: Visualizing the Plan
 
@@ -26,34 +26,10 @@ RETURN m.name
 
 This is invaluable for verifying that the optimizer is correctly choosing indices (e.g., using an `IndexScan` instead of a `NodeScan`) and that joins are happening in the expected order.
 
-## PROFILE: Runtime Statistics
+## Future: PROFILE (Runtime Statistics)
 
-While `EXPLAIN` shows the *intent*, `PROFILE` shows the *reality*. It executes the query and collects timing and row-count data for every single operator in the tree.
+> **Status: Planned** — `PROFILE` is on the roadmap but not yet implemented. Currently, only `EXPLAIN` is available.
 
-```cypher
-PROFILE MATCH (n:Person)-[:KNOWS]->(m:Person) 
-WHERE n.age > 30 
-RETURN m.name
-```
+A future `PROFILE` command would execute the query and collect timing and row-count data for every operator in the tree. This would complement `EXPLAIN` by showing the *reality* alongside the *intent*, enabling developers to identify bottlenecks at the operator level.
 
-**Output**:
-```text
-+----------------------------+----------------+-------------+-----------+
-| Operator                   | Estimated Rows | Actual Rows | Time (ms) |
-+----------------------------+----------------+-------------+-----------+
-| ProjectOperator            |             50 |          47 |      0.12 |
-|   FilterOperator           |             50 |          47 |      0.35 |
-|     ExpandOperator         |            500 |         312 |      1.80 |
-|       NodeScanOperator     |            100 |         100 |      0.45 |
-+----------------------------+----------------+-------------+-----------+
-
-Total rows returned: 47
-Total execution time: 2.72 ms
-```
-
-### Key Performance Indicators (KPIs)
-*   **Time (ms)**: Identifies which operator is the bottleneck. In multi-hop queries, the `ExpandOperator` is often the most expensive.
-*   **Actual Rows**: If this is much larger than "Estimated Rows," it suggests that the cost-based optimizer needs better statistics to make better decisions.
-*   **Late Materialization Savings**: In the `ProjectOperator`, profiling shows the time spent fetching properties from disk/memory, highlighting the efficiency of our columnar storage.
-
-By using these tools, developers can fine-tune their Cypher queries to achieve sub-millisecond latencies even on massive graphs.
+By using `EXPLAIN` today, developers can already fine-tune their Cypher queries by understanding the operator tree, cost estimates, and index selection decisions.

@@ -52,23 +52,45 @@ Supported algorithms currently include:
     *   `edmonds_karp`: Calculating the absolute maximum flow rate between a source and a sink node.
     *   `prim_mst`: Determining the Minimum Spanning Tree of the graph.
 
-## Zero-Copy Python Integration
+4.  **Statistical & Dimensionality Reduction**:
+    *   `pca` (Principal Component Analysis): Reduces high-dimensional node features to their principal components. Supports two solvers:
+        -   **Randomized SVD** (default): Uses the Halko-Martinsson-Tropp algorithm for efficient dimensionality reduction on large datasets. Automatically selected when `n > 500`.
+        -   **Power Iteration** (legacy): Deflation-based eigenvector computation with Gram-Schmidt re-orthogonalization.
 
-The same CSR structure used in Rust is exposed to Python via the `samyama` client using **PyO3**. This allows data scientists to run PageRank on billions of edges in Rust and receive the results in a NumPy array or Pandas DataFrame without the massive overhead of data duplication.
+### PCA Configuration
+
+```rust
+pub struct PcaConfig {
+    pub n_components: usize,      // Number of components (default: 2)
+    pub max_iterations: usize,    // For Power Iteration only (default: 100)
+    pub tolerance: f64,           // Convergence threshold (default: 1e-6)
+    pub center: bool,             // Subtract column means (default: true)
+    pub scale: bool,              // Divide by std dev (default: false)
+    pub solver: PcaSolver,        // Auto, Randomized, or PowerIteration
+}
+```
+
+The `PcaResult` includes principal components, explained variance ratios, and `transform()` / `transform_one()` methods for projecting new data points.
+
+> **Enterprise Note**: GPU-accelerated PCA is available in Samyama Enterprise for datasets exceeding 50,000 nodes (see the [Enterprise Edition](./samyama_enterprise.md) chapter).
+
+## SDK Integration
+
+The same CSR-based algorithms are accessible through the Samyama SDK ecosystem. The Rust SDK's `AlgorithmClient` trait provides direct method access, while the Python and TypeScript SDKs execute algorithms via Cypher queries.
 
 ```python
-import samyama
+from samyama import SamyamaClient
 
-# Connect to the DB
-db = samyama.connect("localhost:6379")
+# Embedded mode: algorithms run in-process at Rust speeds
+client = SamyamaClient.embedded()
 
-# Run PageRank on the "Person" subgraph connected by "KNOWS"
-# This runs in Rust at C++ speeds, but is called from Python!
-scores = db.algo.page_rank(
-    label="Person", 
-    relationship="KNOWS", 
-    damping_factor=0.85
-)
+# Execute PageRank via Cypher
+result = client.query("""
+    MATCH (n:Person)-[:KNOWS]->(m:Person)
+    RETURN n.name, n.pagerank
+""")
 ```
+
+> **Note:** The Rust SDK's `AlgorithmClient` provides direct Rust API access to all algorithms (e.g., `client.page_rank(config, "Person", "KNOWS")`) without going through Cypher. See the [SDKs, CLI & API](./sdk_cli_api.md) chapter for details.
 
 This architecture allows Samyama to replace dedicated graph analytics frameworks like NetworkX (which is slow) or GraphFrames (which requires Spark), providing a single engine for storage and analysis.

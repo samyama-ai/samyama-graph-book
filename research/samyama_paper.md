@@ -7,7 +7,7 @@
 ## Abstract
 Modern data architectures are often fragmented, requiring separate systems for transactional graphs, vector embeddings, and analytical processing. We present **Samyama**, a high-performance, distributed graph-vector database written in Rust. Samyama unifies these workloads into a single engine by combining a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor, and a dedicated analytics engine using Compressed Sparse Row (CSR) structures. 
 
-Notably, Samyama integrates 15+ metaheuristic optimization solvers directly into its query language and implements "Agentic Enrichment" for autonomous graph expansion. We also introduce the **Samyama Enterprise Edition**, which adds production-grade observability, point-in-time recovery, and hardened high availability. Our evaluation shows that Samyama achieves ingestion rates of 363k nodes/s and 1.5M edges/s, with query latencies improved by 4.7x through late materialization, making it a robust foundation for next-generation AI and industrial applications.
+Notably, Samyama integrates 22 metaheuristic optimization solvers directly into its query language and implements "Agentic Enrichment" for autonomous graph expansion. We also introduce the **Samyama Enterprise Edition**, which adds production-grade observability, point-in-time recovery, and hardened high availability. Our evaluation shows that Samyama achieves ingestion rates of 363k nodes/s and 1.5M edges/s, with query latencies improved by 4.7x through late materialization, making it a robust foundation for next-generation AI and industrial applications.
 
 ## 1. Introduction
 The rise of Large Language Models (LLMs) has popularized Retrieval-Augmented Generation (RAG), creating a demand for systems that can handle both relational structure (graphs) and semantic similarity (vectors). Existing solutions typically "bolt-on" vector indices to traditional databases or vice versa, leading to "data gravity" issues and synchronization overhead. Samyama is designed as an "AI-native" database that treats vectors as first-class citizens and provides an integrated environment for both graph analytics and complex resource optimization.
@@ -28,14 +28,14 @@ Samyama supports **OpenCypher**. Queries are parsed via a PEG parser (`pest`) an
 For global graph analytics (e.g., PageRank, WCC), Samyama projects the graph into a **Compressed Sparse Row (CSR)** format. This read-only, cache-local structure allows for parallel processing via `rayon`, providing C++ levels of performance for large-scale topology analysis.
 
 ## 4. In-Database Optimization
-Unique to Samyama is the integration of **Metaheuristic Optimization**. We expose 15+ algorithms—including **Jaya, Rao, Grey Wolf Optimizer (GWO)**, and **NSGA-II**—directly through Cypher procedures. This allows users to solve NP-hard resource allocation problems (e.g., healthcare scheduling, supply chain optimization) directly where the data lives.
+Unique to Samyama is the integration of **Metaheuristic Optimization**. We expose 22 algorithms—including **Jaya, Rao, Grey Wolf Optimizer (GWO)**, and **NSGA-II**—directly through Cypher procedures. This allows users to solve NP-hard resource allocation problems (e.g., healthcare scheduling, supply chain optimization) directly where the data lives.
 
 ## 5. AI & Agentic Enrichment
 Samyama implements **HNSW (Hierarchical Navigable Small World)** indexing for millisecond-speed vector search. 
 Beyond retrieval, we introduce **Agentic Enrichment**: an autonomous loop where the database uses LLMs to fetch and create missing data, transitioning from a passive store to a self-evolving knowledge graph.
 
 ## 6. Performance Evaluation
-Our evaluation was conducted on v0.5.0-alpha.1. We measured ingestion throughput, vector search latency, and query execution times before and after implementing late materialization.
+Our evaluation was conducted on v0.5.0-alpha.1. We measured ingestion throughput, vector search latency, and query execution times before and after implementing late materialization. *(Note: These results are from an earlier version; see the [Performance & Benchmarks](../src/performance_benchmarks.md) chapter for current v0.5.12 numbers.)*
 
 ### 6.1 Throughput Benchmarks
 Samyama demonstrates high-throughput ingestion capabilities, leveraging the decoupled async indexing architecture.

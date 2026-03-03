@@ -2,6 +2,17 @@
 
 We have built a strong foundation, but the journey is just beginning. As we look toward version 1.0 and beyond, several frontier technologies will define the next generation of Samyama.
 
+## Recently Completed (v0.5.8 – v0.5.12)
+
+Before looking ahead, here are major milestones recently delivered:
+
+- **SDK Ecosystem**: Rust SDK (`SamyamaClient` trait, `EmbeddedClient`, `RemoteClient`), Python SDK (PyO3), TypeScript SDK, and CLI — all domain examples migrated to use SDK.
+- **RDF & SPARQL Foundation**: RDF data model with `oxrdf`, triple store with SPO/POS/OSP indices, Turtle/N-Triples/RDF-XML serialization, SPARQL parser infrastructure.
+- **PCA Algorithm**: Randomized SVD (Halko-Martinsson-Tropp) and Power Iteration solvers in the `samyama-graph-algorithms` crate, with GPU-accelerated PCA in Enterprise.
+- **OpenAPI Specification**: Formal API documentation at `api/openapi.yaml`.
+- **WITH Projection Barrier**: Full `WITH` clause support for query pipelining.
+- **EXPLAIN with Graph Statistics**: Cost-based query plan visualization with label counts, edge type counts, and property selectivity.
+
 ## 1. Time-Travel Queries (Temporal Graphs)
 Data is not static; it flows. Current graph databases only show the *current* state.
 
@@ -28,7 +39,10 @@ To complement Graph-Level Sharding, the query engine must evolve from a single-n
 *   **Workers**: Execute local traversals.
 *   **Shuffle/Exchange Operators**: Pass intermediate `RecordBatch` streams across the network using Arrow Flight RPC.
 
-## 4. Native Graph Neural Networks (GNNs)
+## 4. PROFILE (Runtime Statistics)
+While `EXPLAIN` shows the *plan*, `PROFILE` will show the *reality*—executing the query and collecting actual row counts and operator-level timing. This will complement cost-based optimization with empirical feedback.
+
+## 5. Native Graph Neural Networks (GNNs)
 While we currently support powerful vector search (HNSW) and metaheuristic optimization, the next step in "predictive power" is natively training and serving Graph Neural Networks directly within the database.
 *   **Goal**: Run `CALL algo.gnn.predict_link('Person', 'KNOWS')` without exporting data to Python and PyTorch Geometric.
 

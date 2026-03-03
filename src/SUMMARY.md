@@ -11,11 +11,13 @@
 
 # Part II: The Brain (Query & Algorithms)
 - [The Query Engine](./query_engine.md)
-- [Query Optimization (Explain & Profile)](./query_optimization.md)
+- [Query Optimization (Explain)](./query_optimization.md)
 - [Analytical Power (CSR & Algorithms)](./analytical_power.md)
-- [Predictive Power (GNNs)](./predictive_power.md)
+- [SDKs, CLI & API](./sdk_cli_api.md)
+- [RDF & SPARQL Support](./rdf_sparql.md)
 - [In-Database Optimization (Metaheuristics)](./in_database_optimization.md)
 - [Constrained Multi-Objective Optimization](./constrained_optimization.md)
+- [Predictive Power (GNNs) — Roadmap](./predictive_power.md)
 
 # Part III: The Nervous System (Distributed & AI)
 - [Distributed Consensus (Raft)](./distributed_consensus.md)

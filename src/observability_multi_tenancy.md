@@ -28,9 +28,11 @@ Samyama exports hundreds of metrics in the Prometheus format.
 *   **Latency Histograms**: P50, P95, and P99 response times.
 *   **Cache Hit Rates**: How often we are hitting the in-memory graph versus going to RocksDB.
 
-### 2. Tracing (OpenTelemetry)
-For complex, distributed queries, metrics aren't enough. We need to know *where* the time was spent.
-Using the `tracing` crate in Rust, we generate distributed traces that can be visualized in **Jaeger** or **Grafana Tempo**. You can see exactly how many milliseconds were spent parsing the query, planning it, and executing it on different nodes in the cluster.
+### 2. Structured Tracing
+For complex queries, metrics aren't enough. We need to know *where* the time was spent.
+Using the `tracing` crate in Rust, Samyama emits structured spans and events with timing data for every stage of query execution—parsing, planning, and execution. These spans can be collected and visualized using any `tracing`-compatible subscriber.
+
+> **Note**: Currently, Samyama uses `tracing` + `tracing-subscriber` for structured logging and span instrumentation. Full OpenTelemetry export (for visualization in Jaeger or Grafana Tempo) is on the roadmap for a future release.
 
 ### 3. Structured Logging
 Gone are the days of parsing text logs. Samyama emits **JSON logs**.
