@@ -85,6 +85,64 @@ S-size datasets include cit-Patents (3.8M vertices), datagen-7_5-fb (633K vertic
 
 > **Developer Tip:** Run the validation yourself with `cargo bench --bench graphalytics_benchmark`. LDBC datasets are available in `data/graphalytics/`.
 
+## LDBC SNB Interactive & BI Workloads
+
+Beyond Graphalytics (which validates algorithm correctness), Samyama includes benchmark harnesses for the **LDBC Social Network Benchmark (SNB)** — the industry-standard workload for graph database query performance.
+
+### SNB Interactive Workload
+
+21 queries adapted for Samyama's OpenCypher engine, plus 8 update operations:
+
+| Category | Queries | Description |
+| :--- | :--- | :--- |
+| **Interactive Short** | IS1–IS7 | Point lookups: person profile, posts, friends |
+| **Interactive Complex** | IC1–IC14 | Multi-hop traversals: friend-of-friend, common interests, shortest paths |
+| **Insert Operations** | INS1–INS8 | Concurrent writes: new persons, posts, comments, friendships |
+
+```bash
+cargo bench --bench ldbc_benchmark                    # All 21 queries
+cargo bench --bench ldbc_benchmark -- --query IC6     # Single query
+cargo bench --bench ldbc_benchmark -- --updates       # Include writes
+```
+
+### SNB Business Intelligence (BI) Workload
+
+20 complex analytical queries testing OLAP-style aggregation over the social network graph:
+
+| Category | Queries | Description |
+| :--- | :--- | :--- |
+| **BI Queries** | BI-1 to BI-20 | Heavy aggregation, multi-hop analytics, temporal filtering |
+
+*Note: Several BI queries require features beyond current OpenCypher coverage (APOC, CASE, list comprehensions). These are adapted to simplified Cypher that captures the analytical intent using supported constructs.*
+
+```bash
+cargo bench --bench ldbc_bi_benchmark
+cargo bench --bench ldbc_bi_benchmark -- --query BI-1
+```
+
+Both workloads operate on the **LDBC SF1 dataset** loaded via `cargo run --example ldbc_loader`.
+
+## LDBC FinBench Workload
+
+Samyama also includes a harness for the **LDBC Financial Benchmark (FinBench)** — modeling financial transaction networks with accounts, persons, companies, loans, and mediums.
+
+| Category | Queries | Description |
+| :--- | :--- | :--- |
+| **Complex Reads** | CR1–CR12 | Multi-hop fund transfers, blocked account detection, loan chains |
+| **Simple Reads** | SR1–SR6 | Account lookups, transfer history, sign-in records |
+| **Read-Writes** | RW1–RW3 | Mixed read-write transactions |
+| **Writes** | W1–W19 | Account creation, transfers, loan operations |
+
+**40+ queries** total, covering both OLTP and analytical patterns for financial graph workloads.
+
+```bash
+cargo bench --bench finbench_benchmark
+cargo bench --bench finbench_benchmark -- --query CR-1
+cargo bench --bench finbench_benchmark -- --writes    # Include write operations
+```
+
+Data is loaded via `cargo run --example finbench_loader`, which can generate synthetic FinBench-compatible datasets.
+
 ## The Power of Late Materialization
 
 One of our most impactful architectural choices remains **Late Materialization**. 

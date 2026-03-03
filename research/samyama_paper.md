@@ -233,7 +233,17 @@ Samyama was validated against the LDBC Graphalytics benchmark [4]:
 
 S-size datasets: cit-Patents (3.8M vertices, 16.5M edges), datagen-7_5-fb (633K vertices, 68.4M edges), wiki-Talk (2.4M vertices, 5.0M edges).
 
-### 8.7 Technology Comparison
+### 8.7 LDBC SNB & FinBench Workloads
+
+Beyond Graphalytics (algorithm correctness), Samyama includes benchmark harnesses for two additional LDBC workloads:
+
+- **LDBC SNB Interactive**: 21 queries (IS1–IS7, IC1–IC14) + 8 update operations on the Social Network Benchmark SF1 dataset. Tests OLTP-style point lookups and multi-hop traversals.
+- **LDBC SNB Business Intelligence**: 20 complex analytical queries (BI-1 to BI-20) testing OLAP-style aggregation over the social network graph.
+- **LDBC FinBench**: 40+ queries (CR1–CR12, SR1–SR6, RW1–RW3, W1–W19) modeling financial transaction networks with accounts, transfers, loans, and fraud detection patterns.
+
+Data loaders (`ldbc_loader`, `finbench_loader`) and benchmark harnesses are included in the repository.
+
+### 8.8 Technology Comparison
 
 | Metric | Rust (Samyama) | Go (Ref) | Java (Ref) |
 | :--- | :---: | :---: | :---: |
