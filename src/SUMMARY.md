@@ -36,6 +36,10 @@
 - [Real-world Use Cases](./real_world_use_cases.md)
 - [The Future of Graph DBs](./future_roadmap.md)
 
+# Appendices
+- [Frequently Asked Questions](./faq.md)
+- [Glossary](./glossary.md)
+
 # Research & Publications
 - [Research Paper: Samyama Overview](./research_paper_summary.md)
 - [Index of Implemented Papers](./implemented_papers.md)
