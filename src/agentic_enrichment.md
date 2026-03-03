@@ -13,7 +13,30 @@ Samyama implements **Generation-Augmented Knowledge (GAK)**: using an LLM to hel
 
 Samyama can be configured with **Enrichment Policies** via `AgentConfig`. When a new node is created or a specific property is queried, an autonomous agent (managed by `AgentRuntime`) can "wake up" to fill in the gaps.
 
-![Agentic Loop](./images/agentic_loop.svg)
+```mermaid
+sequenceDiagram
+    participant User
+    participant Engine as Query Engine
+    participant Agent as AgentRuntime
+    participant LLM as LLM Provider
+    participant Web as Web Search
+
+    User->>Engine: "CREATE (d:Drug {name: 'Semaglutide'})"
+    Engine->>Engine: Node created
+    Engine->>Agent: Event Trigger fires
+
+    Agent->>LLM: "Find clinical trials for Semaglutide"
+    LLM->>Agent: Tool call - WebSearchTool
+
+    Agent->>Web: Search "Semaglutide clinical trials"
+    Web-->>Agent: Unstructured results
+
+    Agent->>LLM: "Parse results into structured JSON"
+    LLM-->>Agent: JSON entities + relationships
+
+    Agent->>Engine: "CREATE (t:Trial {...})-[:STUDIES]->(d)"
+    Engine-->>User: Graph enriched automatically
+```
 
 ### The Runtime Architecture
 
@@ -52,5 +75,16 @@ Imagine you are building a medical knowledge graph. You create a node for a new 
 This enables what we call a **JIT Knowledge Graph**. The graph doesn't need to be complete on day one. It grows and "heals" itself based on user interaction. 
 
 If a user asks: *"How does the current Fed interest rate impact my mortgage?"* and the `Fed Rate` node is missing, the database can fetch the live rate, create the node, and then answer the question.
+
+## Safety & Validation
+
+Auto-generated Cypher from LLM outputs is validated before execution:
+
+1. **Schema Validation**: Generated `CREATE` commands must target known labels and property types
+2. **Query Safety**: The `NLQPipeline::is_safe_query()` method rejects destructive operations (`DELETE`, `DROP`) from agent-generated queries
+3. **Rate Limiting**: The `AgentConfig` includes limits on enrichment operations per minute to prevent runaway loops
+4. **Audit Trail**: All agent-generated mutations are logged (Enterprise) for traceability
+
+> **See also:** The [AI & Vector Search](./ai_vector_search.md) chapter for the underlying HNSW infrastructure, and the [SDKs, CLI & API](./sdk_cli_api.md) chapter for how to access `AgentRuntime` via the SDK.
 
 By integrating LLMs directly into the write pipeline, Samyama transforms from a simple storage engine into a dynamic, self-evolving brain.

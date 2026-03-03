@@ -17,6 +17,20 @@ Samyama achieves industry-leading ingestion rates on commodity hardware:
 
 *Note: Edge ingestion is significantly faster because it primarily involves appending to adjacency lists and updating the WAL.*
 
+## Cypher Query Throughput (OLTP)
+
+For transactional workloads, Samyama's index-driven execution delivers consistent sub-millisecond latencies:
+
+| Graph Scale | Queries/sec | Avg Latency |
+| :---: | :---: | :---: |
+| **10,000 nodes** | 35,360 QPS | 0.028 ms |
+| **100,000 nodes** | 116,373 QPS | 0.008 ms |
+| **1,000,000 nodes** | 115,320 QPS | 0.008 ms |
+
+*Index-driven lookups achieve O(1) or O(log n) access. QPS is measured with simple `MATCH ... WHERE ... RETURN` queries on indexed properties.*
+
+These numbers demonstrate that Samyama scales almost linearly—throughput at 1M nodes is comparable to 100K because index-based access eliminates full scans.
+
 ## GPU Acceleration: The Crossover Point
 
 A key finding in the v0.5.12 benchmarks is the impact of memory transfer overhead on GPU acceleration.
@@ -40,6 +54,36 @@ Vector search utilizes `hnsw_rs` (CPU) for graph traversal. GPU acceleration in 
 | **Search 50K vectors** | **10,446 QPS** | 9,428 QPS |
 
 *Note: The slight slowdown in the GPU build for small vector searches is due to the initialization overhead of the GPU context.*
+
+## GPU at Scale: S-Size Datasets
+
+On LDBC Graphalytics S-size datasets (millions of vertices), the GPU crossover becomes significant:
+
+| Algorithm | Dataset | Vertices | Edges | CPU | GPU | Speedup |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **LCC** | cit-Patents | 3.8M | 16.5M | 9.6s | **4.7s** | **2.0x** |
+| **CDLP** | cit-Patents | 3.8M | 16.5M | 9.5s | 11.1s | 0.85x |
+| **PageRank** | datagen-7_5-fb | 633K | 68.4M | — | CPU fallback | — |
+
+*Note: Extremely dense graphs (e.g., 68M edges on datagen-7_5-fb) trigger CPU fallback due to the 256MB GPU buffer limit on Apple Silicon. Dedicated GPUs with larger VRAM can handle these datasets.*
+
+## LDBC Graphalytics Validation
+
+Samyama has achieved **100% validation** against the LDBC Graphalytics benchmark suite—the industry standard for graph analytics correctness:
+
+| Algorithm | XS Datasets (2) | S Datasets (3) | Total |
+| :--- | :---: | :---: | :---: |
+| BFS | ✅ 2/2 | ✅ 3/3 | 5/5 |
+| PageRank | ✅ 2/2 | ✅ 3/3 | 5/5 |
+| WCC | ✅ 2/2 | ✅ 3/3 | 5/5 |
+| CDLP | ✅ 2/2 | ✅ 3/3 | 5/5 |
+| LCC | ✅ 2/2 | ✅ 3/3 | 5/5 |
+| SSSP | ✅ 2/2 | ✅ 1/1 | 3/3 |
+| **Total** | **12/12** | **16/16** | **28/28** |
+
+S-size datasets include cit-Patents (3.8M vertices), datagen-7_5-fb (633K vertices, 68M edges), and wiki-Talk (2.4M vertices). All results match LDBC reference outputs exactly.
+
+> **Developer Tip:** Run the validation yourself with `cargo bench --bench graphalytics_benchmark`. LDBC datasets are available in `data/graphalytics/`.
 
 ## The Power of Late Materialization
 

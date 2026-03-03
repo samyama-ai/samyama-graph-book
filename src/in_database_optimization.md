@@ -35,6 +35,21 @@ YIELD fitness, variables
 
 > **Developer Tip:** You can explore the raw performance of these native solvers by running the optimization benchmarks: `cargo bench --bench graph_optimization_benchmark`. This benchmarks algorithms like PSO and Jaya running concurrently via Rayon.
 
+## Solver Convergence
+
+All solvers follow a common iterative pattern: initialize a population, evaluate fitness, evolve, and converge:
+
+```mermaid
+graph TD
+    Init["Initialize Population<br>(random candidates)"] --> Eval["Evaluate Fitness<br>(against graph properties)"]
+    Eval --> Converge{"Converged?<br>OR max iterations?"}
+    Converge -- "No" --> Evolve["Evolve Population<br>(algorithm-specific rules)"]
+    Evolve --> Eval
+    Converge -- "Yes" --> Result["Return Best Solution<br>(YIELD fitness, variables)"]
+```
+
+Each algorithm differs in the "Evolve" step: PSO uses velocity vectors, GWO uses wolf hierarchy, Jaya uses best/worst comparisons, and NSGA-II uses non-dominated sorting with crowding distance.
+
 ## Parallel Evolution: The Power of Rust
 
 Metaheuristic algorithms are computationally intensive as they evaluate entire populations of candidate solutions. Samyama's engine handles this at the Rust level:

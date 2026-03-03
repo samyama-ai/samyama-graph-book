@@ -12,7 +12,22 @@ In academic problems, objectives like "Minimize Cost" and "Maximize Quality" are
 
 ## Constrained Dominance Principle
 
-Samyama Enterprise implements this principle in its **NSGA-II** and **MOTLBO** solvers. Instead of a simple "penalty" approach (which often struggles to find feasible solutions in tight spaces), we modify the selection logic:
+The `samyama-optimization` crate implements this principle in the **NSGA-II** and **MOTLBO** solvers. Instead of a simple "penalty" approach (which often struggles to find feasible solutions in tight spaces), the selection logic follows a strict hierarchy:
+
+```mermaid
+graph TD
+    Compare["Compare Solution A vs B"] --> FeasCheck{"Both<br>Feasible?"}
+
+    FeasCheck -- "Yes" --> Pareto["Standard Pareto<br>Dominance"]
+    FeasCheck -- "No" --> MixCheck{"One Feasible,<br>One Not?"}
+
+    MixCheck -- "Yes" --> FeasWins["Feasible Solution<br>Always Wins"]
+    MixCheck -- "No (both infeasible)" --> Violation["Lower Total<br>Constraint Violation Wins"]
+
+    Pareto --> Select["Selected for<br>Next Generation"]
+    FeasWins --> Select
+    Violation --> Select
+```
 
 1.  **Feasibility First**: A solution that satisfies all constraints is always preferred over one that violates any constraint.
 2.  **Comparative Violation**: Between two infeasible solutions, the one with the lower total constraint violation is preferred.

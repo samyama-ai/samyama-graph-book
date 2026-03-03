@@ -24,6 +24,26 @@ pub struct GraphView {
 }
 ```
 
+```mermaid
+graph LR
+    subgraph "GraphStore (OLTP)"
+        AdjList["Adjacency Lists<br>Vec of Vec of EdgeId"]
+        Props["Property Maps<br>HashMap per Node"]
+    end
+
+    Project["Project to CSR<br>(read-only snapshot)"]
+
+    subgraph "GraphView (OLAP)"
+        Offsets["out_offsets: [0, 2, 5, 7, ...]"]
+        Targets["out_targets: [1, 3, 0, 2, 4, 1, 3, ...]"]
+        Weights["weights: [1.0, 0.5, 1.0, ...]"]
+    end
+
+    AdjList --> Project --> Offsets
+    Project --> Targets
+    Project --> Weights
+```
+
 ### Why CSR?
 *   **Memory Efficiency**: CSR eliminates the memory overhead of adjacency lists (which are `Vec<Vec<EdgeId>>` in the core engine). 
 *   **Sequential Memory Access**: Iterating through a node's neighbors becomes a simple sequential scan of the `out_targets` array, which the CPU can prefetch with nearly 100% accuracy.

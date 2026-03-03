@@ -17,6 +17,25 @@ While the OSS version uses a simulated or basic TCP transport, Enterprise implem
 In a large cluster, a node that has been offline for a long time cannot catch up by replaying millions of individual log entries. It needs a **Snapshot**.
 
 Samyama Enterprise automates the entire snapshot lifecycle:
+
+```mermaid
+graph LR
+    subgraph "Leader"
+        L1["1. Generate Snapshot<br>(RocksDB + GraphStore)"]
+        L2["2. Compress (LZ4)"]
+        L3["3. Stream Chunks<br>(HTTP/2 chunked transfer)"]
+    end
+
+    subgraph "Lagging Follower"
+        F1["4. Receive Chunks"]
+        F2["5. Verify Checksum"]
+        F3["6. Atomic Install<br>(replace old state)"]
+        F4["7. Resume Log<br>Replication"]
+    end
+
+    L1 --> L2 --> L3 --> F1 --> F2 --> F3 --> F4
+```
+
 1.  **Generation**: The Leader creates a consistent point-in-time image of the `GraphStore` and `RocksDB`.
 2.  **Streaming**: The snapshot is compressed and streamed to the lagging Follower using a chunked transfer protocol to avoid memory spikes.
 3.  **Atomic Installation**: The Follower installs the snapshot atomically, replacing its old state only after verifying the snapshot's checksum.

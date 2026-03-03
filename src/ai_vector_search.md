@@ -63,3 +63,5 @@ ORDER BY score DESC LIMIT 5
 ```
 
 This "Pre-filtering" happens directly inside the execution engine, minimizing memory transfers and enabling highly efficient Retrieval-Augmented Generation workflows.
+
+> **See also:** The [Agentic Enrichment](./agentic_enrichment.md) chapter for how vector search powers autonomous knowledge graph expansion, and the [SDKs, CLI & API](./sdk_cli_api.md) chapter for the `VectorClient` API.

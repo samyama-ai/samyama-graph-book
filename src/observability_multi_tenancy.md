@@ -7,6 +7,23 @@ A database in production is a living organism. To keep it healthy, we need to se
 Samyama is "Multi-tenant by Design." We don't just put everyone's data in one big bucket; we use **Namespace Isolation**.
 
 ### Logical Separation with RocksDB
+
+```mermaid
+graph TD
+    subgraph "Samyama Server"
+        Router["Tenant Router"]
+        Router --> TenantA["Tenant A<br>Quota: 1GB RAM, 10GB Disk"]
+        Router --> TenantB["Tenant B<br>Quota: 2GB RAM, 50GB Disk"]
+        Router --> TenantC["Tenant C<br>Quota: 512MB RAM, 5GB Disk"]
+    end
+
+    subgraph "RocksDB"
+        TenantA --> CFA["Column Family: tenant_a<br>Independent compaction"]
+        TenantB --> CFB["Column Family: tenant_b<br>Independent compaction"]
+        TenantC --> CFC["Column Family: tenant_c<br>Independent compaction"]
+    end
+```
+
 We leverage RocksDB's **Column Families** (CF) for this. Each tenant is assigned their own CF.
 *   **Isolation**: Tenant A's keyspace is physically and logically distinct from Tenant B's.
 *   **Maintenance**: Compaction (the background cleanup process) happens per-tenant. If Tenant A is doing heavy writes, it won't trigger a slow compaction for Tenant B.

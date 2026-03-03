@@ -4,6 +4,19 @@ In an enterprise setting, a database is only as good as its last backup. Samyama
 
 ## Backup Strategies
 
+```mermaid
+graph TD
+    Strategy["Choose Backup Strategy"] --> Full["Full Snapshot"]
+    Strategy --> Incremental["Incremental (WAL Delta)"]
+    Strategy --> PITR["Point-in-Time Recovery"]
+
+    Full -- "Complete RocksDB<br>BackupEngine snapshot" --> Store["Backup Store"]
+    Incremental -- "Only changed WAL<br>entries since last backup" --> Store
+    PITR -- "Snapshot + WAL replay<br>to exact timestamp" --> Restore["Restored Database"]
+
+    Store --> Restore
+```
+
 Samyama supports three distinct levels of backup:
 
 ### 1. Full Snapshots
@@ -38,3 +51,14 @@ To prevent disk exhaustion, Samyama Enterprise allows administrators to define a
 *   **Max Age**: Automatically delete backups older than $X$ days.
 
 This automated maintenance ensures that the system remains operational without manual intervention, providing peace of mind for site reliability engineers.
+
+## Recovery Guarantees
+
+| Metric | Guarantee |
+| :--- | :--- |
+| **RPO (Recovery Point Objective)** | Zero data loss with WAL-based incremental backups; microsecond precision with PITR |
+| **RTO (Recovery Time Objective)** | Minutes for full snapshot restore; seconds for WAL replay of recent changes |
+| **Consistency** | Backups use RocksDB's `BackupEngine` which creates a consistent snapshot without blocking writes |
+| **Concurrent Writes** | Backup operations do not block incoming queries—RocksDB snapshots are lock-free |
+
+> **Developer Tip:** Schedule backups during off-peak hours for minimal performance impact. Use `ADMIN.BACKUP VERIFY` periodically to ensure backup integrity before you need them.

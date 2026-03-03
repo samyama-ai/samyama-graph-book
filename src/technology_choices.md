@@ -9,10 +9,12 @@ Why not C++? Why not Go?
 As documented in our internal benchmarks, Rust provides a unique combination of **Memory Safety** and **Zero-Cost Abstractions**. 
 
 ### The Performance Gap
-In a 2-hop traversal benchmark on 1 million nodes:
+In a pure graph traversal benchmark on 1 million nodes (execution only, excluding parse/plan overhead):
 *   **Rust**: 12ms (with 450MB RAM)
 *   **Go**: 45ms (with 850MB RAM + GC Pauses)
 *   **Java**: 38ms (with 1200MB RAM + GC Pauses)
+
+*Note: These numbers measure raw traversal execution time. End-to-end Cypher query latency (including parsing and planning) is higher—see the [Performance & Benchmarks](./performance_benchmarks.md) chapter for full breakdowns.*
 
 The "Cautionary Tale of InfluxDB" served as a warning to us. Originally written in Go, the InfluxDB team eventually rewrote their core query engine in Rust to eliminate unpredictable garbage collection pauses that were impacting P99 latencies. We chose to start with Rust to avoid that "technical debt" from day one.
 

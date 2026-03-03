@@ -79,7 +79,28 @@ The Enterprise edition features a production-hardened Raft implementation (+850 
 
 ## 5. Licensing & Governance
 
-Enterprise features are gated via an Ed25519-signed JET (JSON Enablement Token). 
-*   **Grace Period**: 30-day operation after license expiry with warning logs.
-*   **Governance**: Use `ADMIN.TENANTS` to monitor per-tenant resource usage and enforce strict memory/storage quotas in multi-tenant environments.
+Enterprise features are gated via an Ed25519-signed **JET (JSON Enablement Token)**.
 
+### Token Format
+
+```
+base64(header).base64(payload).base64(signature)
+```
+
+The payload contains: `id`, `org`, `email`, `edition`, `features[]`, `max_nodes`, `max_cluster_nodes`, `issued_at`, `expires_at`, and machine `fingerprint`.
+
+### License Hardening
+
+The Enterprise licensing system includes multiple layers of protection:
+
+| Protection | Mechanism |
+| :--- | :--- |
+| **Public Key Embedding** | Ed25519 public key compiled into the binary via `build.rs` (release builds only) |
+| **Machine Fingerprint** | SHA-256 hash of hostname + primary MAC address binds license to specific hardware |
+| **Clock Drift Protection** | Persisted timestamp tracking with 1-hour tolerance prevents system clock manipulation |
+| **Usage Enforcement** | Node count checked before every `CREATE` at both RESP and HTTP layers |
+| **Revocation List** | Ed25519-signed `revocation.jet` checked at startup; revoked licenses immediately disabled |
+| **Telemetry** | Optional anonymous heartbeat reporting license health (opt-out via `SAMYAMA_TELEMETRY=off`) |
+
+*   **Grace Period**: 30-day operation after license expiry with warning logs. On day 31, enterprise features are disabled but the core engine continues operating.
+*   **Governance**: Use `ADMIN.TENANTS` to monitor per-tenant resource usage and enforce strict memory/storage quotas in multi-tenant environments.

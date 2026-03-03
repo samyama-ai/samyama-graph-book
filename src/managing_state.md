@@ -95,6 +95,22 @@ By separating structural metadata (topology, version) from the actual property v
 
 ## Graph Statistics for Optimization
 
-Finally, `GraphStore` maintains internal `GraphStatistics`, tracking `label_counts`, `edge_type_counts`, and `PropertyStats` (null fraction, distinct counts, selectivity). This allows the query planner to intelligently order operators based on cost estimations.
+Finally, `GraphStore` maintains internal `GraphStatistics`, tracking `label_counts`, `edge_type_counts`, and `PropertyStats` (null fraction, distinct counts, selectivity). This allows the query planner to intelligently order operators based on cost estimations. See the [Query Optimization](./query_optimization.md) chapter for details on how statistics drive the cost-based optimizer.
 
+## ACID Guarantees
 
+Samyama provides strong transactional guarantees aligned with the ACID model:
+
+| Property | Status | Mechanism |
+| :--- | :---: | :--- |
+| **Atomicity** | ✅ | RocksDB `WriteBatch` + WAL ensures all-or-nothing modifications |
+| **Consistency** | ✅ | Schema validation + Raft consensus (writes acknowledged after quorum) |
+| **Isolation** | ⚠️ Partial | Per-query isolation via `RwLock`; MVCC foundation for snapshot isolation. Interactive `BEGIN...COMMIT` transactions planned |
+| **Durability** | ✅ | RocksDB persistence + Raft replication to majority before acknowledgment |
+
+### CAP Trade-off
+
+Samyama's Raft-based clustering chooses **CP** (Consistency + Partition Tolerance):
+- During a network partition, the minority partition cannot accept writes (preserving consistency)
+- Reads from the majority partition remain consistent
+- Availability is sacrificed during partitions in favor of data correctness

@@ -63,5 +63,18 @@ pub fn route(&self, tenant_id: &str) -> ClusterId {
 
 This approach avoids the complexity of distributed graph partitioning (cutting edges across machines) while offering infinite horizontal scale for multi-tenant workloads.
 
+### Failure Modes & Recovery
+
+Raft provides well-defined behavior for common failure scenarios:
+
+| Scenario | Behavior |
+| :--- | :--- |
+| **Follower failure** | Cluster continues with remaining quorum; failed node catches up on rejoin |
+| **Leader failure** | Remaining nodes elect a new leader (typically within 1-2 heartbeat intervals) |
+| **Network partition** | Majority partition continues serving; minority partition stops accepting writes (CP trade-off) |
+| **Split-brain prevention** | Raft's term numbers ensure only one leader per term—stale leaders step down when they see a higher term |
+
+> **See also:** The [Production-Grade High Availability](./advanced_raft.md) chapter for Enterprise-specific hardening (HTTP/2 transport, snapshot streaming, cluster metrics).
+
 ### Future: Graph Partitioning
 For single-tenant graphs that exceed one machine, we are researching "Graph-Aware Partitioning" using METIS, but for now, Tenant Sharding is the production-ready strategy.
