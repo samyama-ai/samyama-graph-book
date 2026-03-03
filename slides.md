@@ -31,7 +31,7 @@ style: |
 ## A Unified Graph-Vector Engine with In-Database Optimization
 
 **v0.5.12** | Built in Rust | Powered by Mechanical Sympathy
-*Sandeep Kunkunuru & Madhulatha Sandeep*
+*Madhulatha Mandarapu & Sandeep Kunkunuru*
 
 ---
 

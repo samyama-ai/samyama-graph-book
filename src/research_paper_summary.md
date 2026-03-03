@@ -3,7 +3,7 @@
 We have published a comprehensive research paper detailing the architecture, design decisions, and performance evaluation of Samyama Graph.
 
 **Title**: *Samyama: A Unified Graph-Vector Database with In-Database Optimization, Agentic Enrichment, and Hardware Acceleration*
-**Authors**: Sandeep Kunkunuru, Madhulatha Sandeep
+**Authors**: Madhulatha Mandarapu, Sandeep Kunkunuru
 **Date**: March 2026 | **Version**: v0.5.12
 **Keywords**: Graph Databases, Vector Search, Distributed Systems, Metaheuristic Optimization, Rust, GPU Acceleration, Agentic AI, RDF, LDBC.
 
