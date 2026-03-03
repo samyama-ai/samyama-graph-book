@@ -8,11 +8,12 @@
 
 ## Abstract
 
-Modern data architectures are fragmented across graph databases, vector stores, analytics engines, and optimization solvers, resulting in complex ETL pipelines, synchronization overhead, and operational burden. We present **Samyama**, a high-performance, distributed graph-vector database written in Rust that unifies these workloads into a single engine. Samyama combines a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor with 28 physical operators, a dedicated CSR-based analytics engine, and native RDF/SPARQL support. The system integrates 22 metaheuristic optimization solvers directly into its query language, implements HNSW vector indexing with Graph RAG capabilities, and introduces "Agentic Enrichment" for autonomous graph expansion via LLMs. A comprehensive SDK ecosystem (Rust, Python, TypeScript) and CLI provide multiple access patterns.
+Modern data architectures are fragmented across graph databases, vector stores, analytics engines, and optimization solvers, resulting in complex ETL pipelines, synchronization overhead, and operational burden. We present **Samyama**, a high-performance, distributed graph-vector database written in Rust that unifies these workloads into a single engine. Samyama combines a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor with 28 physical operators, a dedicated CSR-based analytics engine, and native RDF/SPARQL support. The system integrates 22 metaheuristic optimization solvers directly into its query language, implements HNSW vector indexing [1] with Graph RAG capabilities, and introduces "Agentic Enrichment" for autonomous graph expansion via LLMs. A comprehensive SDK ecosystem (Rust, Python, TypeScript) and CLI provide multiple access patterns.
 
 The **Samyama Enterprise Edition** adds GPU acceleration via wgpu (Metal, Vulkan, DX12), production-grade observability, point-in-time recovery, and hardened high availability with HTTP/2 Raft transport.
 
 Our evaluation on commodity hardware (Mac Mini M4, 16GB RAM) demonstrates:
+
 - **Ingestion**: 255K nodes/s (CPU), 412K nodes/s (GPU-accelerated), 4.2M–5.2M edges/s
 - **OLTP throughput**: 115K Cypher queries/sec at 1M nodes
 - **Late materialization**: 4.0–4.7x latency reduction on multi-hop traversals
@@ -30,13 +31,13 @@ The rise of Large Language Models (LLMs) has popularized Retrieval-Augmented Gen
 Samyama (Sanskrit for "Integration") is designed as an AI-native database that treats graphs, vectors, and optimization as first-class citizens within a single memory-safe engine. Key contributions include:
 
 1. **Unified engine**: Property graph + vector search + analytics + optimization in one binary
-2. **Late materialization**: `NodeRef`-based lazy property resolution achieving 4.7x traversal speedup
+2. **Late materialization**: `NodeRef`-based lazy property resolution [2] achieving 4.7x traversal speedup
 3. **In-database optimization**: 22 metaheuristic solvers accessible directly via Cypher procedures
 4. **Agentic Enrichment (GAK)**: Autonomous graph expansion using LLM tool-calling
 5. **Cross-platform GPU acceleration**: wgpu-based compute shaders for graph algorithms and PCA
 6. **SDK ecosystem**: Rust, Python (PyO3), TypeScript SDKs with embedded and remote access patterns
-7. **RDF interoperability**: Native RDF data model with Turtle/N-Triples/RDF-XML serialization
-8. **Industry validation**: 100% LDBC Graphalytics pass rate (28/28 tests)
+7. **RDF interoperability**: Native RDF data model [3] with Turtle/N-Triples/RDF-XML serialization
+8. **Industry validation**: 100% LDBC Graphalytics [4] pass rate (28/28 tests)
 
 ## 2. System Architecture
 
@@ -44,31 +45,32 @@ Samyama is built on a modern Rust stack for memory safety and zero-cost abstract
 
 ### 2.1 Storage Engine
 
-We utilize **RocksDB** for persistence, employing a tiered Log-Structured Merge (LSM) tree with LZ4 and Zstd compression. Data isolation is achieved through **Column Families**, providing independent compaction, backup, and key namespaces per tenant.
+We utilize **RocksDB** for persistence, employing a tiered Log-Structured Merge (LSM) tree [5] with LZ4 and Zstd compression. Data isolation is achieved through **Column Families**, providing independent compaction, backup, and key namespaces per tenant.
 
 Key design: `NodeId` and `EdgeId` are direct `u64` indices into contiguous arena storage (`Vec<Vec<T>>`), eliminating hash lookups and providing O(1) access with cache-friendly memory layout.
 
 ### 2.2 Memory Management & MVCC
 
-Samyama implements **Multi-Version Concurrency Control (MVCC)** within a versioned-arena structure. The inner vector stores version history, enabling **Snapshot Isolation** without read locks. Write atomicity is guaranteed via RocksDB `WriteBatch` + WAL.
+Samyama implements **Multi-Version Concurrency Control (MVCC)** [6] within a versioned-arena structure. The inner vector stores version history, enabling **Snapshot Isolation** without read locks. Write atomicity is guaranteed via RocksDB `WriteBatch` + WAL [7].
 
 ACID guarantees: Atomicity (WriteBatch), Consistency (schema validation + Raft quorum), Isolation (per-query via RwLock, MVCC foundation), Durability (RocksDB + Raft replication).
 
 ### 2.3 Query & Execution Engine
 
-Samyama supports ~90% of **OpenCypher**. Queries are parsed via a PEG parser (`pest` crate with atomic keyword rules for word boundary enforcement) and executed using a hybrid **Volcano-Vectorized** model with batch size 1,024.
+Samyama supports ~90% of **OpenCypher**. Queries are parsed via a PEG parser [8] (`pest` crate with atomic keyword rules for word boundary enforcement) and executed using a hybrid **Volcano-Vectorized** model [9] with batch size 1,024.
 
 The engine implements **28 physical operators** organized across scan, traversal, filter, join, aggregation, sort, write, index, and specialized categories. A cost-based optimizer uses `GraphStatistics` (label counts, edge counts, property selectivity) for index selection, predicate pushdown, and join ordering.
 
-**Late Materialization** (ADR-012): Scan operators produce `Value::NodeRef(id)` instead of full node clones. Properties are resolved on-demand via the `ColumnStore` at the final `ProjectOperator`, reducing memory bandwidth by 4–5x.
+**Late Materialization** (ADR-012): Scan operators produce `Value::NodeRef(id)` instead of full node clones. Properties are resolved on-demand via the `ColumnStore` at the final `ProjectOperator`, reducing memory bandwidth by 4–5x. This technique adapts the columnar late materialization strategy described in [2] to a graph context.
 
 ### 2.4 RDF & SPARQL
 
-Samyama provides native RDF support via the `oxrdf` crate:
+Samyama provides native RDF [3] support via the `oxrdf` crate:
+
 - **Triple Store**: In-memory with SPO/POS/OSP indices for O(1) pattern matching
 - **Serialization**: Turtle, N-Triples, RDF/XML (read/write), JSON-LD (write)
 - **Namespace Management**: Pre-loaded prefixes (rdf, rdfs, xsd, owl, foaf, dc)
-- **SPARQL**: Parser infrastructure via `spargebra`; query execution in development
+- **SPARQL** [10]: Parser infrastructure via `spargebra`; query execution in development
 
 ## 3. High-Performance Analytics
 
@@ -82,13 +84,13 @@ The `samyama-graph-algorithms` crate provides 14 algorithms:
 
 | Category | Algorithms |
 | :--- | :--- |
-| **Centrality** | PageRank (with dangling redistribution), LCC (directed + undirected) |
-| **Community** | WCC (Union-Find), SCC (Tarjan), CDLP, Triangle Counting |
-| **Pathfinding** | BFS, Dijkstra, BFS All Shortest Paths |
-| **Network Flow** | Edmonds-Karp (Max Flow), Prim's MST |
-| **Statistical** | PCA (Randomized SVD + Power Iteration) |
+| **Centrality** | PageRank [11] (with dangling redistribution), LCC [12] (directed + undirected) |
+| **Community** | WCC (Union-Find), SCC (Tarjan [13]), CDLP [14], Triangle Counting |
+| **Pathfinding** | BFS, Dijkstra [15], BFS All Shortest Paths |
+| **Network Flow** | Edmonds-Karp [16] (Max Flow), Prim's MST |
+| **Statistical** | PCA (Randomized SVD [17] + Power Iteration) |
 
-PCA implements the Halko-Martinsson-Tropp algorithm for Randomized SVD with O(n·d·k) complexity, auto-selecting over Power Iteration when n > 500 nodes.
+PCA implements the Halko-Martinsson-Tropp algorithm [17] for Randomized SVD with O(n·d·k) complexity, auto-selecting over Power Iteration when n > 500 nodes.
 
 ## 4. In-Database Optimization
 
@@ -104,13 +106,13 @@ CALL algo.or.solve({
 }) YIELD pareto_front
 ```
 
-Solvers include: Jaya, QOJAYA, Rao (1-3), TLBO, ITLBO, GOTLBO, PSO, DE, GA, GWO, ABC, BAT, Cuckoo, Firefly, FPA, GSA, SA, HS, BMR, BWR, NSGA-II, and MOTLBO. Multi-objective solvers implement the **Constrained Dominance Principle** for feasibility-first Pareto optimization. All solvers leverage Rayon for parallel fitness evaluation across CPU cores.
+Solvers include: Jaya [18], QOJAYA, Rao (1-3) [19], TLBO [20], ITLBO, GOTLBO, PSO [21], DE [22], GA [23], GWO [24], ABC [25], BAT [26], Cuckoo Search [27], Firefly [28], FPA [29], GSA [30], SA [31], HS [32], BMR, BWR, NSGA-II [33], and MOTLBO. Multi-objective solvers implement the **Constrained Dominance Principle** for feasibility-first Pareto optimization. All solvers leverage Rayon for parallel fitness evaluation across CPU cores.
 
 ## 5. AI & Agentic Enrichment
 
 ### 5.1 Vector Search
 
-Samyama implements **HNSW** indexing (via `hnsw_rs`) for millisecond-speed approximate nearest neighbor search with Cosine, L2, and Dot Product metrics. The `VectorSearchOperator` integrates with standard graph operators for **Graph RAG**—combining vector retrieval with graph traversal in a single query execution.
+Samyama implements **HNSW** [1] indexing (via `hnsw_rs`) for millisecond-speed approximate nearest neighbor search with Cosine, L2, and Dot Product metrics. The `VectorSearchOperator` integrates with standard graph operators for **Graph RAG**—combining vector retrieval with graph traversal in a single query execution.
 
 ### 5.2 Agentic Enrichment (GAK)
 
@@ -140,7 +142,7 @@ The Enterprise Edition adds production-grade capabilities:
 
 ### 7.1 GPU Acceleration (wgpu)
 
-Cross-platform GPU acceleration via WGSL compute shaders targeting Metal (macOS), Vulkan (Linux), and DX12 (Windows). GPU-accelerated algorithms: PageRank, CDLP, LCC, Triangle Counting, and PCA. Additional GPU operators: parallel SUM aggregation and bitonic sort for ORDER BY on large result sets.
+Cross-platform GPU acceleration via WGSL compute shaders targeting Metal (macOS), Vulkan (Linux), and DX12 (Windows). GPU-accelerated algorithms: PageRank, CDLP, LCC, Triangle Counting, and PCA. Additional GPU operators: parallel SUM aggregation and bitonic sort [34] for ORDER BY on large result sets.
 
 GPU PCA uses 5 specialized shaders with tiled covariance computation (64-sample tiles) and fused power iteration with in-GPU normalization. Thresholds: `MIN_GPU_PCA = 50,000` nodes, `d > 32` dimensions.
 
@@ -158,7 +160,7 @@ Full snapshots via RocksDB `BackupEngine`, incremental WAL-based delta backups, 
 
 ### 7.4 Hardened High Availability
 
-HTTP/2 Raft transport with TLS, automated snapshot streaming to lagging followers, and cluster metrics (role, term, replication lag). +850 lines of code over OSS Raft implementation.
+HTTP/2 Raft [35] transport with TLS, automated snapshot streaming to lagging followers, and cluster metrics (role, term, replication lag). +850 lines of code over OSS Raft implementation.
 
 ### 7.5 License Hardening
 
@@ -215,14 +217,16 @@ Crossover point: ~100K nodes for general algorithms; ~50K for PCA.
 
 ### 8.6 LDBC Graphalytics Validation
 
+Samyama was validated against the LDBC Graphalytics benchmark [4]:
+
 | Algorithm | XS (2 datasets) | S (3 datasets) | Total |
 | :--- | :---: | :---: | :---: |
-| BFS | ✅ 2/2 | ✅ 3/3 | 5/5 |
-| PageRank | ✅ 2/2 | ✅ 3/3 | 5/5 |
-| WCC | ✅ 2/2 | ✅ 3/3 | 5/5 |
-| CDLP | ✅ 2/2 | ✅ 3/3 | 5/5 |
-| LCC | ✅ 2/2 | ✅ 3/3 | 5/5 |
-| SSSP | ✅ 2/2 | ✅ 1/1 | 3/3 |
+| BFS | 2/2 | 3/3 | 5/5 |
+| PageRank | 2/2 | 3/3 | 5/5 |
+| WCC | 2/2 | 3/3 | 5/5 |
+| CDLP | 2/2 | 3/3 | 5/5 |
+| LCC | 2/2 | 3/3 | 5/5 |
+| SSSP | 2/2 | 1/1 | 3/3 |
 | **Total** | **12/12** | **16/16** | **28/28** |
 
 S-size datasets: cit-Patents (3.8M vertices, 16.5M edges), datagen-7_5-fb (633K vertices, 68.4M edges), wiki-Talk (2.4M vertices, 5.0M edges).
@@ -245,20 +249,98 @@ Samyama differentiates by unifying all four workloads (OLTP, OLAP, vector, optim
 
 Samyama bridges the gap between transactional integrity and analytical intelligence. By unifying graphs, vectors, optimization, and RDF in a memory-safe distributed system with GPU acceleration, it provides a scalable architecture for the future of agentic AI. The SDK ecosystem lowers the barrier to adoption across Rust, Python, and TypeScript ecosystems, while the Enterprise Edition provides the operational maturity required for global industrial deployments.
 
-100% LDBC Graphalytics validation confirms algorithmic correctness. Benchmark results demonstrate that Samyama achieves competitive performance on commodity hardware while maintaining the safety guarantees of Rust.
+100% LDBC Graphalytics validation [4] confirms algorithmic correctness. Benchmark results demonstrate that Samyama achieves competitive performance on commodity hardware while maintaining the safety guarantees of Rust.
+
+---
+
+## References
+
+[1] Y. A. Malkov and D. A. Yashunin, "Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs," *IEEE Transactions on Pattern Analysis and Machine Intelligence*, vol. 42, no. 4, pp. 824–836, 2020.
+
+[2] D. J. Abadi, S. R. Madden, and N. Hachem, "Column-Stores vs. Row-Stores: How Different Are They Really?," in *Proc. ACM SIGMOD*, 2008, pp. 967–980.
+
+[3] W3C, "RDF 1.1 Concepts and Abstract Syntax," W3C Recommendation, 2014. [Online]. Available: https://www.w3.org/TR/rdf11-concepts/
+
+[4] A. Iosup *et al.*, "LDBC Graphalytics: A Benchmark for Large-Scale Graph Analysis on Parallel and Distributed Platforms," *Proc. VLDB Endowment*, vol. 9, no. 13, pp. 1317–1328, 2016.
+
+[5] P. O'Neil, E. Cheng, D. Gawlick, and E. O'Neil, "The Log-Structured Merge-Tree (LSM-Tree)," *Acta Informatica*, vol. 33, no. 4, pp. 351–385, 1996.
+
+[6] P. A. Bernstein and N. Goodman, "Concurrency Control in Distributed Database Systems," *ACM Computing Surveys*, vol. 13, no. 2, pp. 185–221, 1981.
+
+[7] C. Mohan, D. Haderle, B. Lindsay, H. Pirahesh, and P. Schwarz, "ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging," *ACM Transactions on Database Systems*, vol. 17, no. 1, pp. 94–162, 1992.
+
+[8] B. Ford, "Parsing Expression Grammars: A Recognition-Based Syntactic Foundation," in *Proc. ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL)*, 2004, pp. 111–122.
+
+[9] G. Graefe, "Volcano — An Extensible and Parallel Query Evaluation System," *IEEE Transactions on Knowledge and Data Engineering*, vol. 6, no. 1, pp. 120–135, 1994.
+
+[10] W3C, "SPARQL 1.1 Query Language," W3C Recommendation, 2013. [Online]. Available: https://www.w3.org/TR/sparql11-query/
+
+[11] L. Page, S. Brin, R. Motwani, and T. Winograd, "The PageRank Citation Ranking: Bringing Order to the Web," Stanford InfoLab Technical Report, 1999.
+
+[12] D. J. Watts and S. H. Strogatz, "Collective dynamics of 'small-world' networks," *Nature*, vol. 393, pp. 440–442, 1998.
+
+[13] R. Tarjan, "Depth-First Search and Linear Graph Algorithms," *SIAM Journal on Computing*, vol. 1, no. 2, pp. 146–160, 1972.
+
+[14] U. N. Raghavan, R. Albert, and S. Kumara, "Near linear time algorithm to detect community structures in large-scale networks," *Physical Review E*, vol. 76, no. 3, 036106, 2007.
+
+[15] E. W. Dijkstra, "A note on two problems in connexion with graphs," *Numerische Mathematik*, vol. 1, pp. 269–271, 1959.
+
+[16] J. Edmonds and R. M. Karp, "Theoretical Improvements in Algorithmic Efficiency for Network Flow Problems," *Journal of the ACM*, vol. 19, no. 2, pp. 248–264, 1972.
+
+[17] N. Halko, P. G. Martinsson, and J. A. Tropp, "Finding structure with randomness: Probabilistic algorithms for constructing approximate matrix decompositions," *SIAM Review*, vol. 53, no. 2, pp. 217–288, 2011.
+
+[18] R. Venkata Rao, "Jaya: A simple and new optimization algorithm for solving constrained and unconstrained optimization problems," *International Journal of Industrial Engineering Computations*, vol. 7, pp. 19–34, 2016.
+
+[19] R. Venkata Rao, "Rao algorithms: Three metaphor-less simple algorithms for solving optimization problems," *International Journal of Industrial Engineering Computations*, vol. 11, pp. 107–130, 2020.
+
+[20] R. Venkata Rao, V. J. Savsani, and D. P. Vakharia, "Teaching–learning-based optimization: A novel method for constrained mechanical design optimization problems," *Computer-Aided Design*, vol. 43, no. 3, pp. 303–315, 2011.
+
+[21] J. Kennedy and R. Eberhart, "Particle swarm optimization," in *Proc. IEEE International Conference on Neural Networks*, vol. 4, 1995, pp. 1942–1948.
+
+[22] R. Storn and K. Price, "Differential Evolution — A Simple and Efficient Heuristic for global Optimization over Continuous Spaces," *Journal of Global Optimization*, vol. 11, pp. 341–359, 1997.
+
+[23] J. H. Holland, *Adaptation in Natural and Artificial Systems*. Ann Arbor: University of Michigan Press, 1975.
+
+[24] S. Mirjalili, S. M. Mirjalili, and A. Lewis, "Grey Wolf Optimizer," *Advances in Engineering Software*, vol. 69, pp. 46–61, 2014.
+
+[25] D. Karaboga, "An Idea Based On Honey Bee Swarm for Numerical Optimization," Erciyes University Technical Report TR06, 2005.
+
+[26] X.-S. Yang, "A New Metaheuristic Bat-Inspired Algorithm," in *Nature Inspired Cooperative Strategies for Optimization (NICSO)*, Springer, 2010, pp. 65–74.
+
+[27] X.-S. Yang and S. Deb, "Cuckoo Search via Lévy Flights," in *Proc. World Congress on Nature & Biologically Inspired Computing (NaBIC)*, IEEE, 2009, pp. 210–214.
+
+[28] X.-S. Yang, "Firefly Algorithms for Multimodal Optimization," in *Stochastic Algorithms: Foundations and Applications (SAGA)*, Springer LNCS 5792, 2009, pp. 169–178.
+
+[29] X.-S. Yang, "Flower Pollination Algorithm for Global Optimization," in *Unconventional Computation and Natural Computation*, Springer LNCS 7445, 2012, pp. 240–249.
+
+[30] E. Rashedi, H. Nezamabadi-pour, and S. Saryazdi, "GSA: A Gravitational Search Algorithm," *Information Sciences*, vol. 179, no. 13, pp. 2232–2248, 2009.
+
+[31] S. Kirkpatrick, C. D. Gelatt, and M. P. Vecchi, "Optimization by Simulated Annealing," *Science*, vol. 220, no. 4598, pp. 671–680, 1983.
+
+[32] Z. W. Geem, J. H. Kim, and G. V. Loganathan, "A New Heuristic Optimization Algorithm: Harmony Search," *Simulation*, vol. 76, no. 2, pp. 60–68, 2001.
+
+[33] K. Deb, A. Pratap, S. Agarwal, and T. Meyarivan, "A fast and elitist multiobjective genetic algorithm: NSGA-II," *IEEE Transactions on Evolutionary Computation*, vol. 6, no. 2, pp. 182–197, 2002.
+
+[34] K. E. Batcher, "Sorting networks and their applications," in *Proc. AFIPS Spring Joint Computer Conference*, 1968, pp. 307–314.
+
+[35] D. Ongaro and J. Ousterhout, "In Search of an Understandable Consensus Algorithm," in *Proc. USENIX Annual Technical Conference (ATC)*, 2014, pp. 305–319.
 
 ---
 
 ## Appendix: System Illustrations
 
 1. **System Architecture Diagram**: Flow from OpenCypher queries through the Vectorized Executor to the RocksDB/MVCC storage layer.
-![Samyama Architecture](./images/architecture.svg){width=90%}
+
+![Samyama Architecture](./images/architecture.svg)
 
 2. **CSR Data Layout**: Mapping of `out_offsets` and `out_targets` for cache-efficient traversal.
-![CSR Layout](./images/csr_layout.svg){width=90%}
+
+![CSR Layout](./images/csr_layout.svg)
 
 3. **Agentic Enrichment Loop**: Event-driven trigger, LLM tool-calling, and graph update.
-![Agentic Loop](./images/agentic_loop.svg){width=90%}
+
+![Agentic Loop](./images/agentic_loop.svg)
 
 4. **Pareto Front Visualization**: NSGA-II multi-objective optimization results for supply chain scenario.
-![Pareto Front](./images/pareto_front.svg){width=90%}
+
+![Pareto Front](./images/pareto_front.svg)
