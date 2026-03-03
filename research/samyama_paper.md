@@ -1,7 +1,14 @@
 # Samyama: A Unified Graph-Vector Database with In-Database Optimization, Agentic Enrichment, and Hardware Acceleration
 
-**Authors**: Madhulatha Mandarapu, Sandeep Kunkunuru
+**Authors**: Madhulatha Mandarapu\ ([LinkedIn](https://www.linkedin.com/in/madhulatha-mandarapu-72bb6b2a/)),
+Sandeep Kunkunuru\ ([LinkedIn](https://www.linkedin.com/in/sandeepkunkunuru/))
+
+**GitHub**: [https://github.com/samyama-ai/samyama-graph](https://github.com/samyama-ai/samyama-graph)
+
+**Book**: [https://samyama-ai.github.io/samyama-graph-book/](https://samyama-ai.github.io/samyama-graph-book/)
+
 **Date**: March 2026 | **Version**: v0.5.12
+
 **Keywords**: Graph Databases, Vector Search, Distributed Systems, Metaheuristic Optimization, Rust, GPU Acceleration, Agentic AI, RDF, LDBC.
 
 ---
