@@ -21,11 +21,13 @@ cargo run --release
 cargo run --example banking_demo
 ```
 
-### What protocols does Samyama support?
+### What protocols does Samyama support? Is it Postgres wire protocol?
 
-Samyama exposes two protocols:
-- **RESP (Redis Protocol)** on port 6379 — use any Redis client
-- **HTTP API** on port 8080 — RESTful endpoints
+No, Samyama does **not** use the Postgres wire protocol. It exposes two protocols:
+- **RESP (Redis Protocol)** on port 6379 — use any Redis client (redis-cli, Jedis, ioredis, etc.)
+- **HTTP API** on port 8080 — RESTful endpoints for queries and status
+
+We chose RESP over Postgres wire protocol because: (1) RESP is simpler and faster (binary protocol, minimal framing overhead), (2) it enables drop-in compatibility with the RedisGraph ecosystem (which was sunset by Redis Ltd), and (3) graph queries are fundamentally different from SQL — we didn't want to shoehorn Cypher into a SQL-shaped protocol.
 
 Example using `redis-cli`:
 ```bash
@@ -1046,6 +1048,127 @@ The roadmap includes AST caching and plan memoization to reduce warm-query laten
 
 ---
 
+## Architecture Deep Dive
+
+### Is Samyama ACID-compliant or eventually consistent?
+
+Samyama provides **local ACID** guarantees for single-node deployments:
+
+- **Atomicity**: Each write query (CREATE, DELETE, SET, MERGE) executes as an atomic `WriteBatch` via RocksDB. Either all changes commit or none do.
+- **Consistency**: Unique constraints (when defined) are enforced before commit. Schema integrity is maintained across labels, edges, and properties.
+- **Isolation**: The in-memory `GraphStore` uses a `RwLock` — multiple concurrent readers with exclusive writer access. Queries see a consistent snapshot.
+- **Durability**: The Write-Ahead Log (WAL) persists every mutation before acknowledgement. On crash recovery, uncommitted WAL entries are replayed.
+
+In a **Raft cluster** (Enterprise), writes go through consensus — a write is acknowledged only after a majority of nodes have persisted the log entry. This provides strong consistency (linearizable writes) at the cost of write latency. There is no "eventually consistent" mode.
+
+Interactive multi-statement transactions (`BEGIN...COMMIT`) are on the roadmap. Today, each Cypher statement is an implicit transaction.
+
+### Is Samyama multi-master? How does Raft synchronization work?
+
+No. Samyama uses **single-leader** Raft consensus (via the `openraft` crate):
+
+- **One leader** accepts all write requests and replicates them to followers.
+- **Followers** can serve read queries (read replicas) for horizontal read scaling.
+- If the leader fails, a new leader is automatically elected (typically within 1–2 seconds).
+
+This is not a multi-master architecture. Multi-master would require conflict resolution (CRDTs, last-write-wins, etc.), which adds complexity and weakens consistency guarantees. Single-leader Raft gives us strong consistency without conflict resolution overhead.
+
+```
+Client Write ──► Leader ──► Follower 1 (ack)
+                       └──► Follower 2 (ack)
+                       └──► majority acked → commit → respond to client
+```
+
+### Does Samyama use the RocksDB C/C++ library or a Rust port?
+
+Samyama uses **`rust-rocksdb`**, which is a Rust binding to the original C++ RocksDB library from Meta (Facebook). It is NOT a Rust rewrite — it links against the actual C++ RocksDB via FFI (Foreign Function Interface). This means:
+
+- We get the battle-tested, production-proven RocksDB storage engine (used by Meta, CockroachDB, TiKV, etc.)
+- The Rust binding provides safe, idiomatic Rust APIs over the C++ core
+- Performance is identical to native RocksDB — no overhead from the binding layer
+
+RocksDB handles compaction, compression (LZ4/Zstd), bloom filters, and sorted string tables (SSTs). Samyama uses RocksDB column families for multi-tenancy isolation.
+
+### How does concurrency work?
+
+Samyama uses a **readers-writer lock** (`tokio::sync::RwLock`) at the `GraphStore` level:
+
+- **Reads** (MATCH queries): Multiple readers can execute concurrently. Each reader acquires a shared read lock.
+- **Writes** (CREATE, DELETE, SET, MERGE): A writer acquires an exclusive lock. No reads or other writes proceed while a write is in progress.
+- **RESP server**: The Tokio async runtime handles thousands of concurrent connections. Read queries are processed concurrently; write queries are serialized.
+
+This model is simple and correct. For read-heavy workloads (typical for graph databases), it provides excellent throughput since reads never block each other. Write throughput is limited to one writer at a time, but individual writes are fast (sub-millisecond for most mutations).
+
+Future work includes finer-grained concurrency (per-partition or MVCC-based), but the current model handles production workloads well because graph queries spend most time in traversal (reading), not mutation.
+
+### Are you using SIMD for graph traversal?
+
+Not currently in explicit SIMD intrinsics, but we benefit from **auto-vectorization** by the LLVM backend (Rust compiles via LLVM). The `--release` build enables `-O3` optimizations which include:
+
+- Auto-vectorized array operations in adjacency list scanning
+- SIMD-friendly memory layouts in the CSR (Compressed Sparse Row) representation used by graph algorithms
+- Cache-line-aligned data structures for traversal hot paths
+
+For GPU acceleration (Enterprise), we use **WGSL compute shaders** via `wgpu` — this is massively parallel computation (thousands of GPU threads), which is a different paradigm from CPU SIMD. GPU shaders handle PageRank, CDLP, LCC, Triangle Counting, and PCA on large graphs (>100K nodes).
+
+Explicit CPU SIMD intrinsics (e.g., for batch property filtering or distance calculations) are on the roadmap but not yet implemented.
+
+### How does multi-tenancy work internally? Is there database-level isolation?
+
+Yes, tenants get **storage-level isolation** via RocksDB Column Families:
+
+- Each tenant gets its own **Column Family** in a single RocksDB instance. Column families are logically separate key-value namespaces — they have independent memtables, SST files, and compaction schedules.
+- One tenant's heavy writes or compaction do **not** affect other tenants' read/write performance.
+- **Per-tenant quotas** are enforced: `max_nodes`, `max_edges`, `max_memory_bytes`, `max_storage_bytes`, `max_connections`, and `max_query_time_ms`.
+
+```
+┌──────────── Single RocksDB Instance ────────────┐
+│  ┌─────────────┐  ┌─────────────┐  ┌──────────┐ │
+│  │  CF: acme   │  │ CF: globex  │  │ CF: ...  │ │
+│  │  memtable   │  │  memtable   │  │          │ │
+│  │  SST files  │  │  SST files  │  │          │ │
+│  │  WAL        │  │  WAL        │  │          │ │
+│  └─────────────┘  └─────────────┘  └──────────┘ │
+└─────────────────────────────────────────────────┘
+```
+
+We chose a single RocksDB instance with column families over multiple RocksDB instances because:
+1. **Lower resource overhead**: One set of background threads, one WAL, shared block cache
+2. **Simpler operations**: One database to back up, monitor, and recover
+3. **Proven at scale**: TiKV (TiDB's storage engine) uses the same column-family-per-region approach
+
+If you need stronger isolation (separate processes, separate machines), the Raft cluster topology allows deploying dedicated nodes per tenant.
+
+### How does embedding work? Is it a .so file or a Rust library?
+
+Both options are available:
+
+1. **Rust library (primary)**: Add `samyama-sdk` as a Cargo dependency. The `EmbeddedClient` runs the full engine in-process — no server, no network, no serialization overhead.
+
+   ```toml
+   [dependencies]
+   samyama-sdk = "0.6"
+   ```
+
+   ```rust
+   let client = EmbeddedClient::new();
+   client.query("default", "CREATE (n:Person {name: 'Alice'})").await?;
+   ```
+
+2. **Python binding (PyO3)**: The Python SDK compiles to a native `.so` / `.dylib` shared library via PyO3. Install with `pip install samyama` (or `maturin develop` from source). No Rust toolchain needed at runtime.
+
+   ```python
+   from samyama import SamyamaClient
+   client = SamyamaClient.embedded()
+   result = client.query("default", "MATCH (n) RETURN count(n)")
+   ```
+
+3. **C FFI (planned)**: A C-compatible shared library (`.so` / `.dll`) for embedding from any language with FFI support (Go, Java, C#, etc.) is on the roadmap.
+
+For production services, most users run Samyama as a **standalone server** (RESP on :6379, HTTP on :8080) and connect via the Rust, Python, or TypeScript SDK using the `RemoteClient`.
+
+---
+
 ## Enterprise & Operations
 
 ### How does licensing work?
@@ -1247,3 +1370,83 @@ await client.query('default', `
   CREATE (a:Person {name: 'Alice'})-[:KNOWS]->(b:Person {name: 'Bob'})
 `);
 ```
+
+---
+
+## Project & Commercial
+
+### What is Samyama's motivation and long-term vision?
+
+Samyama was born from the observation that existing graph databases force users to choose between **performance** (C++/Rust in-memory engines), **features** (Cypher, vector search, NLQ, graph algorithms), and **operational simplicity** (easy deployment, Redis protocol compatibility). We believe a modern graph database should deliver all three.
+
+The name "Samyama" comes from Sanskrit — it means "integration" or "bringing together." The database integrates property graphs, vector search, natural language queries, graph algorithms, and constrained optimization into a single engine.
+
+Long-term, Samyama aims to be the **converged graph + AI database** — where graph structure, vector embeddings, and LLM-powered queries work together natively, not as bolted-on features.
+
+### How do you plan to maintain this over 6–8 years?
+
+Three pillars:
+
+1. **Rust as a foundation**: Rust's memory safety, zero-cost abstractions, and absence of garbage collection give us a codebase that is inherently more maintainable than C++ (no memory bugs) and more performant than JVM-based alternatives (no GC pauses). The compiler catches entire classes of bugs at compile time.
+
+2. **Open-core model**: The Community Edition (Apache 2.0) ensures the core engine always has community scrutiny and contributions. Enterprise features (monitoring, backup, GPU, audit) are layered on top — they don't fork the core. This means maintenance effort focuses on one engine, not two.
+
+3. **Revenue-funded engineering**: The Enterprise tier funds dedicated engineering. We're not dependent on VC funding cycles. The pricing model (data-scale tiers, not per-seat) ensures revenue grows with customer success.
+
+We also invest heavily in automated quality: 250+ unit tests, 10 benchmark suites, LDBC Graphalytics validation (100% pass rate), and LDBC SNB Interactive/BI benchmarks run on every release.
+
+### What features are Enterprise-only vs. open source?
+
+The core principle: **Enterprise gates operations, not functionality.** The full query engine, all algorithms, vector search, NLQ, persistence, and multi-tenancy are in the open-source Community Edition. Enterprise adds:
+
+| Enterprise-Only Feature | Why Enterprise |
+| :--- | :--- |
+| GPU acceleration (wgpu shaders) | Hardware-specific, driver dependencies |
+| Prometheus metrics / health checks | Production monitoring |
+| Backup & restore (full/incremental/PITR) | Data protection SLA |
+| Audit logging | Compliance (SOC2, GDPR) |
+| Enhanced Raft (HTTP/2 transport, snapshot streaming) | Production HA |
+| ADMIN commands (CONFIG, STATS, TENANTS) | Operational control |
+
+### How is the Enterprise edition priced?
+
+Samyama uses a **data-scale + cluster-size** pricing model — not per-seat, not per-CPU, not per-query. Pricing is transparent and published:
+
+| Tier | Price | Data Limit | Cluster | Support |
+| :--- | :--- | :--- | :--- | :--- |
+| **Community** | Free | Unlimited | 1 node | GitHub community |
+| **Pro** | $499/mo ($4,990/yr) | 10M nodes | Up to 3 nodes | Email, 48h SLA |
+| **Enterprise** | $2,499/mo ($24,990/yr) | 100M nodes | Unlimited | 24/7, 4h Sev1 SLA |
+| **Dedicated Cloud** | Contact sales | Unlimited | Unlimited | Named TAM, 1h Sev1 SLA |
+
+Annual commitment saves 17%. Multi-year (3-year) saves 30%.
+
+We deliberately avoid per-CPU/per-core licensing — customers shouldn't worry about hardware choices. Price scales with the value delivered (data size, operational maturity), not with infrastructure decisions.
+
+### Do you provide support? What does it look like?
+
+| Tier | Support Level | Response Time |
+| :--- | :--- | :--- |
+| Community | GitHub Issues, community forums | Best-effort |
+| Pro | Email support | 48h for general, 24h for Sev1 |
+| Enterprise | 24/7 support, phone escalation | 4h for Sev1, 8h for Sev2 |
+| Dedicated | Named Technical Account Manager | 1h for Sev1, custom SLA |
+
+Add-ons available: dedicated support engineer (+$2,000/mo), premium SLA upgrade (+$500/mo), custom integration/consulting ($250/hr).
+
+### Is the pricing recurring or one-time? Per-CPU?
+
+**Recurring** — monthly or annual subscription. Annual prepay saves 17%.
+
+We explicitly avoid per-CPU/per-core licensing. The pricing model is based on **data scale** (node count) and **cluster size** (number of HA nodes). Customers can run on any hardware without license implications — whether it's a 4-core laptop or a 128-core server.
+
+### Do you offer OEM licensing?
+
+Yes. For partners who embed Samyama within their own product or manage it on behalf of their clients, we offer **OEM / Embedded licensing** with:
+
+- **White-label deployment**: No Samyama branding visible to end customers
+- **Volume-based pricing**: Per-deployment or per-end-customer pricing rather than per-instance
+- **Redistribution rights**: Bundle Samyama binaries within your product installer
+- **Dedicated integration support**: Engineering assistance for embedding and customization
+
+OEM licensing is structured as a custom annual agreement. Contact sales for terms that match your deployment model (SaaS platform, managed service, on-prem appliance, etc.).
