@@ -46,6 +46,20 @@ While `EXPLAIN` shows the *plan*, `PROFILE` will show the *reality*—executing 
 While we currently support powerful vector search (HNSW) and metaheuristic optimization, the next step in "predictive power" is natively training and serving Graph Neural Networks directly within the database.
 *   **Goal**: Run `CALL algo.gnn.predict_link('Person', 'KNOWS')` without exporting data to Python and PyTorch Geometric.
 
+## Full Backlog
+
+The items above are highlights. The complete prioritized backlog with ~100 items across 13 categories is maintained in `samyama-cloud/docs/BACKLOG.md`. Key backlog IDs referenced in this chapter:
+
+| Topic | Backlog IDs |
+|-------|-------------|
+| Temporal queries | HA-04 |
+| Graph-level sharding | HA-05 |
+| Distributed query execution | HA-06 |
+| PROFILE runtime stats | QE-02 |
+| GNN inference | AI-04, AI-05 |
+| Query planner improvements | QP-01 through QP-10 |
+| Cypher completeness gaps | CY-01 through CY-10 |
+
 ## Conclusion
 
 Samyama started as a question: "Can we do better?"
