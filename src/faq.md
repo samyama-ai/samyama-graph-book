@@ -101,6 +101,16 @@ Samyama currently uses a **heuristic-based planner** rather than a full cost-bas
 
 A full cost-based optimizer that evaluates alternative plans (join reordering, index intersection, scan strategy comparison) is on the roadmap. See the [Query Optimization](./query_optimization.md) chapter.
 
+### How are individual operator costs estimated?
+
+Operator costs are not individually computed today. The planner does not assign a numeric cost to each operator (e.g., "HashJoin costs 1,200 units") or sum them into a total plan cost. Instead:
+
+- **Scan**: The planner uses `estimate_label_scan(label)` to know how many nodes a label scan will touch, and `estimate_equality_selectivity(label, prop)` to estimate how many will pass a filter. These numbers appear in `EXPLAIN` output.
+- **Join**: No cost formula. The planner always uses hash join when a shared variable exists.
+- **Sort/Aggregate**: No cost model — always appended if the query requires ORDER BY or aggregation.
+
+In a future cost-based optimizer, each operator would carry an estimated cost (factoring in I/O, CPU, and memory), and the planner would compare the total cost of alternative plans to select the cheapest. This is how mature relational optimizers (PostgreSQL, Oracle) work.
+
 ### What cardinality estimation techniques are used?
 
 `GraphStatistics` provides three estimation methods:
@@ -111,7 +121,38 @@ A full cost-based optimizer that evaluates alternative plans (join reordering, i
 | `estimate_expand(edge_type)` | Edge count for a type (from `edge_type_index`) | O(1) |
 | `estimate_equality_selectivity(label, prop)` | `1.0 / distinct_count` for the property | O(1) |
 
-Statistics are computed by sampling the first 1,000 nodes per label and tracking property presence, null fractions, and distinct value counts. These estimates are currently surfaced in `EXPLAIN` output but are **not yet used to drive plan selection**. Future work includes histogram-based estimation, multi-column correlation tracking, and using these estimates to rank candidate plans.
+Statistics are computed by sampling the first 1,000 nodes per label and tracking property presence, null fractions, and distinct value counts. These estimates are currently surfaced in `EXPLAIN` output but are **not yet used to drive plan selection**.
+
+### How are statistics collected and maintained?
+
+Statistics are computed on demand via `GraphStore::compute_statistics()`, which:
+
+1. Iterates all labels in the `label_index` and counts nodes per label
+2. Iterates all edge types in the `edge_type_index` and counts edges per type
+3. **Samples** the first 1,000 nodes per label to compute per-property stats:
+   - `null_fraction` — fraction of sampled nodes missing the property
+   - `distinct_count` — number of distinct values observed
+   - `selectivity` — `1.0 / distinct_count` (uniform distribution assumption)
+4. Computes `avg_out_degree` across all nodes
+
+Statistics are **not auto-refreshed** — they are recomputed each time `EXPLAIN` is called. There is no background statistics daemon or `ANALYZE` command (as in PostgreSQL). Adding periodic auto-refresh and histogram-based distributions is on the roadmap.
+
+### How does the planner handle cardinality estimation errors?
+
+It currently does not. Since statistics are not used to drive plan decisions, estimation errors do not cause suboptimal plan selection — but they also cannot *prevent* it. The planner always follows the same heuristic path regardless of data distribution.
+
+In mature optimizers, cardinality estimation errors can cause severe performance problems — the optimizer might choose a hash join when a nested-loop join would be faster, or scan a large table when an index exists. Tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) visualize these errors as **cardinality diagrams**, mapping estimation accuracy across the selectivity space to expose where the optimizer's statistics are most inaccurate.
+
+Future work includes using collected statistics to actually drive plan decisions, at which point estimation accuracy will become critical.
+
+### What about multi-column correlations and compound predicates?
+
+Not yet handled. The current selectivity model assumes **independence** between properties — `selectivity(A AND B) = selectivity(A) × selectivity(B)`. This is the standard simplifying assumption but can be wildly wrong when properties are correlated (e.g., `city = 'Mumbai'` and `country = 'India'` are not independent).
+
+Future work includes:
+- **Multi-column statistics** (joint distinct counts or dependency graphs)
+- **Histogram-based estimation** (equi-width or equi-depth histograms per property)
+- **Sketch-based estimation** (HyperLogLog for distinct counts, Count-Min Sketch for frequency estimation)
 
 ### Does Samyama support parameterized or templatized queries?
 
@@ -127,6 +168,15 @@ MATCH (n:Person {age: $age}) RETURN n
 
 Parameterized queries (`$param` syntax), prepared statements (`PREPARE`/`EXECUTE`), and query templates are on the roadmap. Today, applications must construct complete Cypher strings with interpolated values. Use the NLQ pipeline or SDK helper methods to safely construct queries.
 
+### How do parameterized queries affect plan stability?
+
+In optimizers that support parameterized queries, a key concern is **plan stability** — whether the same query template produces different plans for different parameter values. This is the phenomenon visualized by tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) as **plan diagrams**: color-coded maps showing how the optimal plan changes as selectivity varies.
+
+Since Samyama does not yet support parameterized queries, each query is planned independently. This means there is no plan caching or "plan sniffing" problem (where a cached plan is reused for parameter values it was not optimized for). When parameterized queries are added, the planner will need to decide between:
+- **Re-plan every time** (safe but slow)
+- **Cache plans** with invalidation when statistics change
+- **Adaptive re-planning** when estimated vs. actual cardinalities diverge
+
 ### What join algorithms does Samyama use?
 
 Three join strategies are available:
@@ -139,7 +189,30 @@ Three join strategies are available:
 
 The hash join materializes the left side into a `HashMap<Value, Vec<Record>>` and probes it for each right-side record. This is efficient for equality joins on node identity but does not support range joins.
 
-**Not yet implemented**: Merge join (sorted inputs), nested-loop join (for small right sides), or adaptive/streaming joins. Join order follows the query text order — the planner does not reorder joins based on estimated cardinalities.
+### How is join order determined?
+
+Join order follows **query text order** — the planner does not reorder joins. The first MATCH clause becomes the left (build) side of the hash join, and the second becomes the right (probe) side. This means:
+
+```cypher
+-- These produce DIFFERENT plans with different performance:
+MATCH (a:Person), (b:Company) WHERE a.worksAt = b.name RETURN a, b
+MATCH (b:Company), (a:Person) WHERE a.worksAt = b.name RETURN a, b
+```
+
+In the first query, all `Person` nodes are materialized into the hash table; in the second, all `Company` nodes are. If there are 1M persons and 1K companies, the second form is significantly more memory-efficient.
+
+**Not yet implemented**: Join reordering based on cardinality estimates, bushy join trees (the planner always produces left-deep trees), or adaptive joins that switch strategy mid-execution.
+
+### Are there additional join strategies on the roadmap?
+
+Yes. Future join strategies under consideration:
+
+| Algorithm | Best For | Complexity |
+| :--- | :--- | :---: |
+| **Nested-Loop Join** | Small right side, or when index exists on join key | O(n × m) worst case |
+| **Merge Join** | Both sides already sorted on join key | O(n + m) |
+| **Index Nested-Loop Join** | Right side has index on join key | O(n × log m) |
+| **Adaptive Join** | Switches strategy based on runtime cardinalities | Variable |
 
 ### What scan operators are available, and how is one chosen?
 
@@ -153,10 +226,19 @@ Three scan operators:
 
 **Selection logic**: The planner checks whether the WHERE clause contains a simple binary comparison (`n.prop OP literal`) on the start node's property. If an index exists for that `(label, property)` pair, it emits an `IndexScanOperator`; otherwise it falls back to `NodeScanOperator`.
 
-**Current limitations**:
-- Only the **start node** of each MATCH path is considered for index scans
-- Only **single predicate** conditions trigger index use — `AND` chains with multiple indexed properties do not yet use index intersection
-- Multi-label nodes use the first matching index only
+### Can multiple indexes be used for a single query (index intersection)?
+
+**Not yet.** If a WHERE clause has multiple indexed predicates (`WHERE n.age > 30 AND n.city = 'Mumbai'`), only one index is used — the planner picks the first matching index it finds. The remaining predicate is applied as a post-scan filter via `FilterOperator`.
+
+**Index intersection** (scanning both indexes independently and intersecting the result sets) is a planned optimization. This would allow queries with multiple selective predicates to benefit from all available indexes.
+
+### Are there other scan limitations I should know about?
+
+Yes:
+- Only the **start node** of each MATCH path is considered for index scans — intermediate or end nodes always use label scan + filter
+- **Multi-label** nodes use the first matching index only
+- **OR predicates** (`WHERE n.age = 30 OR n.age = 40`) do not trigger index union scans — they fall through to a full label scan with filter
+- **Prefix/CONTAINS/ENDS WITH** string predicates do not use indexes
 
 To verify which scan your query uses, prefix with `EXPLAIN`.
 
@@ -169,9 +251,68 @@ Currently, the planner generates a **single plan** using heuristic rules — it 
 3. Combine multiple MATCH clauses via shared-variable detection → `JoinOperator` or `CartesianProductOperator`
 4. Stack remaining operators (filter, project, sort, limit) in fixed order
 
-There is no plan enumeration, no cost comparison between alternatives, and no join reordering. The `_optimize` field exists in the `QueryPlanner` struct as a placeholder for future cost-based optimization.
+There is no plan enumeration, no cost comparison between alternatives, and no join reordering.
 
 **Practical tip**: Since the planner follows query text order, you can influence performance by placing the most selective MATCH clause (the one that returns fewest results) first.
+
+### What would a full cost-based optimizer look like?
+
+A cost-based optimizer (CBO), as implemented in mature systems like PostgreSQL, follows a fundamentally different approach:
+
+1. **Enumerate** candidate plans — different join orders, scan methods, join algorithms
+2. **Estimate** the cost of each plan using cardinality estimates and a cost model (CPU cost, I/O cost, memory cost)
+3. **Compare** all candidates and select the lowest-cost plan
+4. **Prune** the search space using dynamic programming or heuristic pruning
+
+Tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) (developed at IISc Bangalore) help visualize CBO behavior by generating **plan diagrams** — color-coded maps showing which plan the optimizer selects at each point in the selectivity space. These visualizations reveal:
+- **Plan switches**: Where the optimizer changes its preferred plan
+- **Cost cliffs**: Sudden spikes in estimated cost at plan boundaries
+- **Nervous regions**: Areas where small selectivity changes cause frequent plan switches
+- **Robust plans**: Plans that perform well across a wide range of selectivities
+
+Implementing a CBO for Samyama is a major roadmap item.
+
+### What are "plan cliffs" and does Samyama have them?
+
+A **plan cliff** occurs when a small change in data distribution causes the optimizer to switch to a dramatically different (and often worse) plan. For example, a query might use a fast index scan for `selectivity < 0.05` but suddenly switch to a slow full scan at `selectivity = 0.051`, causing a 100x latency spike.
+
+Since Samyama's planner uses fixed heuristic rules (not cost-based selection), it does not exhibit plan cliffs in the traditional sense — the same heuristic rules always produce the same plan structure regardless of data distribution. However, this also means the planner cannot adapt to scenarios where a different plan would be better.
+
+### Can I evaluate alternative plans for the same query (Foreign Plan Costing)?
+
+**Not yet.** In Picasso terminology, **Foreign Plan Costing (FPC)** means forcing the optimizer to estimate the cost of a plan other than its preferred choice — to measure the "sub-optimality gap" (how much worse the chosen plan is compared to the theoretical best).
+
+Since Samyama generates only one plan, there are no alternative plans to compare against. When a cost-based optimizer is added, FPC-style analysis will become possible through `EXPLAIN` extensions that show rejected alternatives and their estimated costs.
+
+### Can I visualize and compare execution plans (Plan Diffing)?
+
+`EXPLAIN` outputs a textual operator tree, which can be compared manually between different queries. There is no built-in plan diffing tool that automatically highlights differences between two plans (e.g., "Query A uses IndexScan while Query B uses NodeScan on the same label").
+
+Plan diffing, plan diagram generation, and graphical plan visualization are on the roadmap.
+
+### Is there plan caching or AST caching?
+
+**Not yet.** Every query is parsed, planned, and executed from scratch — even if the identical query string was just executed. This contributes to the cold-start overhead visible in benchmarks (parsing: 54%, planning: 44% of total latency).
+
+Planned optimizations:
+- **AST caching**: Cache the parsed AST keyed by query string hash, skipping re-parsing for repeated queries
+- **Plan memoization**: Cache the physical execution plan, skipping both parsing and planning
+- **Prepared statements**: Pre-parse and pre-plan a query template, then execute with different parameter bindings
+
+These optimizations are expected to reduce warm-query latency from ~40ms to ~10ms.
+
+### What is predicate pushdown, and does Samyama do it?
+
+**Predicate pushdown** moves filter conditions as close to the data source as possible — filtering early reduces the number of records flowing through the rest of the plan.
+
+Samyama performs limited predicate pushdown:
+- **Index pushdown**: When a WHERE predicate matches an indexed property, the `IndexScanOperator` applies the filter during the scan itself (only qualifying records are produced)
+- **Label filtering**: `NodeScanOperator` only scans nodes with the specified label, not all nodes
+
+However, more advanced pushdown is not yet implemented:
+- Predicates on **join results** are not pushed below the join
+- Predicates on **aggregation results** (HAVING-style) are not pushed below the aggregation
+- **Edge predicates** are not pushed into the `ExpandOperator`
 
 ### Can I force a specific execution plan or provide optimizer hints?
 
@@ -187,6 +328,25 @@ The only way to influence plan selection today is:
 3. **Use EXPLAIN** to verify the plan and adjust your query accordingly
 
 Optimizer hints and plan forcing are planned for a future release.
+
+### What is the query optimizer roadmap?
+
+The optimizer roadmap, roughly in priority order:
+
+| Feature | Impact | Status |
+| :--- | :--- | :---: |
+| AST caching | Eliminate re-parsing (~22ms savings) | Planned |
+| Plan memoization | Eliminate re-planning (~18ms savings) | Planned |
+| Parameterized queries (`$param`) | Enable plan reuse across parameter values | Planned |
+| `PROFILE` (runtime statistics) | Actual rows, timing per operator | Planned |
+| AND-chain index selection | Use best index for multi-predicate WHERE | Planned |
+| Index intersection | Combine multiple index scans | Planned |
+| Predicate pushdown below joins | Reduce intermediate result sizes | Planned |
+| Cost-based plan selection | Compare alternative plans by estimated cost | Planned |
+| Join reordering | Pick optimal join order based on cardinalities | Planned |
+| `USING INDEX` / `USING SCAN` hints | User-controlled plan forcing | Planned |
+| Histogram-based statistics | Better selectivity estimates for skewed data | Planned |
+| Adaptive query execution | Re-plan mid-execution if estimates are wrong | Research |
 
 ---
 
