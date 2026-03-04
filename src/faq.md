@@ -24,12 +24,40 @@ cargo run --example banking_demo
 ### What protocols does Samyama support?
 
 Samyama exposes two protocols:
-- **RESP (Redis Protocol)** on port 6379 — use any Redis client. Commands: `GRAPH.QUERY`, `GRAPH.RO_QUERY`
-- **HTTP API** on port 8080 — `POST /api/query`, `GET /api/status`. See the [SDKs, CLI & API](./sdk_cli_api.md) chapter
+- **RESP (Redis Protocol)** on port 6379 — use any Redis client
+- **HTTP API** on port 8080 — RESTful endpoints
+
+Example using `redis-cli`:
+```bash
+redis-cli GRAPH.QUERY default "CREATE (n:Person {name: 'Alice', age: 30})"
+redis-cli GRAPH.QUERY default "MATCH (n:Person) RETURN n.name, n.age"
+```
+
+Example using HTTP:
+```bash
+curl -s -X POST http://localhost:8080/api/query \
+  -d '{"query": "MATCH (n) RETURN count(n)", "graph": "default"}'
+
+curl -s http://localhost:8080/api/status | python3 -m json.tool
+```
+
+See the [SDKs, CLI & API](./sdk_cli_api.md) chapter.
 
 ### What query language does Samyama use?
 
-Samyama supports **OpenCypher** with ~90% coverage. Supported clauses: MATCH, OPTIONAL MATCH, CREATE, DELETE, SET, REMOVE, MERGE, WITH, UNWIND, UNION, RETURN DISTINCT, ORDER BY, SKIP, LIMIT, EXPLAIN, EXISTS subqueries. See the [Query Engine](./query_engine.md) chapter.
+Samyama supports **OpenCypher** with ~90% coverage. Supported clauses: MATCH, OPTIONAL MATCH, CREATE, DELETE, SET, REMOVE, MERGE, WITH, UNWIND, UNION, RETURN DISTINCT, ORDER BY, SKIP, LIMIT, EXPLAIN, EXISTS subqueries.
+
+Example — create a small social graph and query it:
+```cypher
+CREATE (a:Person {name: 'Alice', age: 30})-[:KNOWS]->(b:Person {name: 'Bob', age: 25})
+CREATE (b)-[:KNOWS]->(c:Person {name: 'Charlie', age: 35})
+
+MATCH (p:Person)-[:KNOWS]->(friend)
+WHERE p.age > 28
+RETURN p.name, friend.name
+```
+
+See the [Query Engine](./query_engine.md) chapter.
 
 ### What are the minimum system requirements?
 
@@ -60,24 +88,67 @@ See the [Enterprise Edition](./samyama_enterprise.md) chapter for full details.
 
 Remaining gaps: list slicing (`[1..3]`), pattern comprehensions, named paths, `CASE` expressions, `collect(DISTINCT x)`. The [Future Roadmap](./future_roadmap.md) tracks planned additions.
 
+Example of features that work today as alternatives:
+
+```cypher
+-- Instead of CASE, use conditional logic in application code:
+MATCH (n:Person) RETURN n.name, n.age
+
+-- Instead of named paths, return nodes directly:
+MATCH (a:Person)-[:KNOWS]->(b:Person)-[:KNOWS]->(c:Person)
+RETURN a.name, b.name, c.name
+
+-- UNWIND works for list iteration:
+UNWIND [1, 2, 3] AS x RETURN x
+```
+
 ### How do I check if my query is using an index?
 
 Use `EXPLAIN` before your query:
 ```cypher
 EXPLAIN MATCH (n:Person {name: 'Alice'}) RETURN n
 ```
-If you see `IndexScanOperator` instead of `NodeScanOperator`, the index is being used. See the [Query Optimization](./query_optimization.md) chapter.
 
-### How do I create a property index?
+If you see `IndexScanOperator` in the output, the index is being used. If you see `NodeScanOperator`, the query is doing a full label scan — consider creating an index:
 
 ```cypher
+-- Before: full scan (slow on large graphs)
+EXPLAIN MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
+-- Output: NodeScanOperator(Person) → FilterOperator(n.name = 'Alice')
+
+-- Create the index:
 CREATE INDEX ON :Person(name)
-CREATE INDEX ON :Person(age)
+
+-- After: index scan (fast O(log n))
+EXPLAIN MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
+-- Output: IndexScanOperator(Person.name = 'Alice')
 ```
+
+See the [Query Optimization](./query_optimization.md) chapter.
 
 ### Can I use EXPLAIN to see estimated costs?
 
-Yes. `EXPLAIN` returns the operator tree with estimated row counts and graph statistics (label counts, edge type counts, property selectivity). `PROFILE` (with actual execution timing) is on the roadmap.
+Yes. `EXPLAIN` returns the operator tree with estimated row counts and graph statistics (label counts, edge type counts, property selectivity):
+
+```cypher
+EXPLAIN MATCH (a:Person)-[:KNOWS]->(b:Person)
+WHERE a.age > 25
+RETURN a.name, b.name
+```
+
+Output includes:
+```
+ProjectOperator [a.name, b.name]
+  └── FilterOperator [a.age > 25]
+        └── ExpandOperator [KNOWS]
+              └── NodeScanOperator [Person]
+--- Statistics ---
+  Person: 10,000 nodes
+  KNOWS: 45,000 edges
+  avg_out_degree: 4.5
+```
+
+`PROFILE` (with actual execution timing and row counts per operator) is on the roadmap.
 
 ### How many physical operators does the engine have?
 
@@ -85,7 +156,149 @@ Yes. `EXPLAIN` returns the operator tree with estimated row counts and graph sta
 
 ### Does Samyama support transactions?
 
-Samyama provides per-query atomicity via RocksDB `WriteBatch` + WAL. Interactive `BEGIN...COMMIT` transactions are on the roadmap. See the [ACID Guarantees](./managing_state.md#acid-guarantees) section.
+Samyama provides per-query atomicity via RocksDB `WriteBatch` + WAL. Each write query (CREATE, DELETE, SET, MERGE) executes as an atomic unit — either all changes commit or none do.
+
+```cypher
+-- This entire query is atomic — both nodes and the edge are created together:
+CREATE (a:Account {id: 'A1', balance: 1000})-[:TRANSFER {amount: 500}]->(b:Account {id: 'A2', balance: 2000})
+```
+
+Interactive `BEGIN...COMMIT` transactions (spanning multiple queries) are on the roadmap. See the [ACID Guarantees](./managing_state.md#acid-guarantees) section.
+
+---
+
+## Indexes & Data Access
+
+### What types of indexes does Samyama support?
+
+Samyama provides four index types:
+
+| Index Type | Data Structure | Purpose | Created By |
+| :--- | :--- | :--- | :--- |
+| **Property Index** | `BTreeMap<PropertyValue, HashSet<NodeId>>` | Fast property lookups and range scans | `CREATE INDEX` |
+| **Label Index** | `HashMap<Label, HashSet<NodeId>>` | Fast label-based node retrieval | Automatic (built-in) |
+| **Edge Type Index** | `HashMap<EdgeType, HashSet<EdgeId>>` | Fast edge type lookups | Automatic (built-in) |
+| **Vector Index** | HNSW (Hierarchical Navigable Small World) | Approximate nearest neighbor search | `CREATE VECTOR INDEX` |
+
+### How do property indexes work?
+
+Property indexes use a **B-tree** (`BTreeMap`) that maps property values to sets of node IDs. This gives O(log n) lookups for both exact matches and range queries.
+
+**Creating a property index:**
+```cypher
+CREATE INDEX ON :Person(name)
+CREATE INDEX ON :Person(age)
+CREATE INDEX ON :Transaction(amount)
+```
+
+**How it's used** — the planner automatically selects an index scan when a WHERE predicate matches an indexed property:
+```cypher
+-- Exact match → index lookup, returns matching NodeIds directly
+MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
+
+-- Range query → B-tree range scan
+MATCH (n:Person) WHERE n.age > 25 RETURN n.name, n.age
+
+-- Supported comparison operators: =, >, >=, <, <=
+MATCH (t:Transaction) WHERE t.amount >= 10000 RETURN t
+```
+
+**Performance characteristics:**
+
+| Operation | Complexity |
+| :--- | :---: |
+| Exact match (`=`) | O(log n) |
+| Range query (`>`, `>=`, `<`, `<=`) | O(log n + k) where k = results |
+| Insert (on node create/update) | O(log n) |
+| Remove (on node delete/update) | O(log n) |
+
+**Limitation**: Each index covers a single `(label, property)` pair. Composite indexes (multi-property) are not yet supported.
+
+### How do the built-in label and edge type indexes work?
+
+These are **automatic indexes** maintained internally — you don't create or manage them.
+
+**Label index** — maps each label to all nodes with that label:
+```cypher
+-- Uses label_index internally to find all Person nodes in O(1)
+MATCH (n:Person) RETURN n
+
+-- Statistics show label cardinality:
+EXPLAIN MATCH (n:Person) RETURN n
+-- Output: NodeScanOperator [Person] (est. 10,000 rows)
+```
+
+**Edge type index** — maps each edge type to all edges of that type:
+```cypher
+-- Uses edge_type_index to find all KNOWS edges
+MATCH ()-[r:KNOWS]->() RETURN count(r)
+```
+
+Both indexes use `HashMap<Key, HashSet<Id>>` for O(1) lookup by label/type and O(m) iteration over all matching entities.
+
+### How do vector indexes work?
+
+Vector indexes use **HNSW (Hierarchical Navigable Small World)** for approximate nearest neighbor search, powered by the `hnsw_rs` crate.
+
+**Creating a vector index:**
+```cypher
+CREATE VECTOR INDEX embedding_idx
+FOR (d:Document) ON (d.embedding)
+OPTIONS {dimensions: 768, similarity: 'cosine'}
+```
+
+**Supported distance metrics:**
+
+| Metric | Best For | Formula |
+| :--- | :--- | :--- |
+| `cosine` | Text embeddings, normalized vectors | `1.0 - cos(a, b)` |
+| `l2` | Spatial data, raw feature vectors | `sqrt(sum((a_i - b_i)^2))` |
+| `dot_product` | Pre-normalized embeddings | `1.0 - dot(a, b)` |
+
+**Querying:**
+```cypher
+-- Find the 5 documents most similar to a query vector
+CALL db.index.vector.queryNodes('Document', 'embedding', [0.12, -0.34, ...], 5)
+YIELD node, score
+RETURN node.title, score
+```
+
+**HNSW parameters** (compile-time defaults):
+- `max_elements`: 100,000
+- `M`: 16 connections per layer
+- `ef_construction`: 200
+- `ef_search`: 2 × k (set at query time)
+
+**Via the Rust SDK:**
+```rust
+client.create_vector_index("Document", "embedding", 768, DistanceMetric::Cosine).await?;
+client.add_vector("Document", "embedding", node_id, &embedding_vec).await?;
+let results = client.vector_search("Document", "embedding", &query_vec, 5).await?;
+```
+
+### Are composite (multi-property) indexes supported?
+
+**Not yet.** Each property index covers a single `(label, property)` pair. If you have:
+```cypher
+CREATE INDEX ON :Person(age)
+CREATE INDEX ON :Person(city)
+```
+
+A query like `WHERE n.age > 25 AND n.city = 'Mumbai'` will use only **one** index (the first match the planner finds) and apply the other predicate as a post-scan filter.
+
+Composite indexes and index intersection are on the roadmap.
+
+### Are unique constraints supported?
+
+**Not yet.** Multiple nodes can have the same property value. There is no `CREATE CONSTRAINT ON (n:Person) ASSERT n.email IS UNIQUE` syntax. Uniqueness must be enforced at the application level.
+
+### Is DROP INDEX supported?
+
+Not via Cypher. The `IndexManager` has a `drop_index(label, property)` method internally, but there is no `DROP INDEX` Cypher syntax exposed. This is a planned addition.
+
+### Can I list all indexes?
+
+Not via Cypher currently. The `IndexManager` and `VectorIndexManager` both have `list_indices()` methods accessible through the SDK, but there is no `SHOW INDEXES` or `CALL db.indexes()` Cypher procedure. This is planned.
 
 ---
 
@@ -99,6 +312,18 @@ Samyama currently uses a **heuristic-based planner** rather than a full cost-bas
 2. **Join strategy**: If MATCH clauses share a variable, use `JoinOperator` (hash join); otherwise use `CartesianProductOperator`.
 3. **Operator stacking**: Filter → Unwind → Write → Project → Sort → Limit, in fixed order.
 
+Example — the planner selects different operators based on index availability:
+```cypher
+-- Without index on :Person(name): full label scan
+EXPLAIN MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
+-- Plan: NodeScanOperator(Person) → FilterOperator(name = 'Alice') → ProjectOperator
+
+-- With index on :Person(name): index scan
+CREATE INDEX ON :Person(name)
+EXPLAIN MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
+-- Plan: IndexScanOperator(Person.name = 'Alice') → ProjectOperator
+```
+
 A full cost-based optimizer that evaluates alternative plans (join reordering, index intersection, scan strategy comparison) is on the roadmap. See the [Query Optimization](./query_optimization.md) chapter.
 
 ### How are individual operator costs estimated?
@@ -109,7 +334,19 @@ Operator costs are not individually computed today. The planner does not assign 
 - **Join**: No cost formula. The planner always uses hash join when a shared variable exists.
 - **Sort/Aggregate**: No cost model — always appended if the query requires ORDER BY or aggregation.
 
-In a future cost-based optimizer, each operator would carry an estimated cost (factoring in I/O, CPU, and memory), and the planner would compare the total cost of alternative plans to select the cheapest. This is how mature relational optimizers (PostgreSQL, Oracle) work.
+Example of what `EXPLAIN` shows today vs. what a future CBO would show:
+```
+-- Today's EXPLAIN output (statistics only, no costs):
+NodeScanOperator [Person] (est. 10,000 rows)
+  └── FilterOperator [age > 25] (selectivity: 0.5)
+
+-- Future CBO output (with operator costs):
+NodeScanOperator [Person] (est. 10,000 rows, cost: 10,000)
+  └── FilterOperator [age > 25] (est. 5,000 rows, cost: 5,000)
+  Total plan cost: 15,000
+```
+
+In a future cost-based optimizer, each operator would carry an estimated cost (factoring in I/O, CPU, and memory), and the planner would compare the total cost of alternative plans to select the cheapest.
 
 ### What cardinality estimation techniques are used?
 
@@ -121,7 +358,14 @@ In a future cost-based optimizer, each operator would carry an estimated cost (f
 | `estimate_expand(edge_type)` | Edge count for a type (from `edge_type_index`) | O(1) |
 | `estimate_equality_selectivity(label, prop)` | `1.0 / distinct_count` for the property | O(1) |
 
-Statistics are computed by sampling the first 1,000 nodes per label and tracking property presence, null fractions, and distinct value counts. These estimates are currently surfaced in `EXPLAIN` output but are **not yet used to drive plan selection**.
+Example — for a graph with 10,000 Person nodes where `name` has 8,000 distinct values:
+```
+estimate_label_scan("Person")                    → 10,000
+estimate_equality_selectivity("Person", "name")  → 1/8,000 = 0.000125
+Estimated rows for WHERE name = 'Alice'          → 10,000 × 0.000125 ≈ 1.25
+```
+
+These estimates are currently surfaced in `EXPLAIN` output but are **not yet used to drive plan selection**.
 
 ### How are statistics collected and maintained?
 
@@ -141,13 +385,31 @@ Statistics are **not auto-refreshed** — they are recomputed each time `EXPLAIN
 
 It currently does not. Since statistics are not used to drive plan decisions, estimation errors do not cause suboptimal plan selection — but they also cannot *prevent* it. The planner always follows the same heuristic path regardless of data distribution.
 
-In mature optimizers, cardinality estimation errors can cause severe performance problems — the optimizer might choose a hash join when a nested-loop join would be faster, or scan a large table when an index exists. Tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) visualize these errors as **cardinality diagrams**, mapping estimation accuracy across the selectivity space to expose where the optimizer's statistics are most inaccurate.
+Example of where estimation errors would matter in a future CBO:
+```cypher
+-- If the planner estimates 100 rows but there are actually 1,000,000:
+MATCH (a:Person)-[:KNOWS]->(b:Person)
+WHERE a.city = 'Mumbai'
+RETURN a.name, b.name
 
-Future work includes using collected statistics to actually drive plan decisions, at which point estimation accuracy will become critical.
+-- A CBO might choose hash join (good for 100 rows)
+-- but nested-loop would be catastrophic for 1M rows
+-- Accurate cardinality estimates prevent this mistake
+```
+
+In mature optimizers, cardinality estimation errors can cause severe performance problems. Tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) visualize these errors as **cardinality diagrams**, mapping estimation accuracy across the selectivity space to expose where the optimizer's statistics are most inaccurate.
 
 ### What about multi-column correlations and compound predicates?
 
-Not yet handled. The current selectivity model assumes **independence** between properties — `selectivity(A AND B) = selectivity(A) × selectivity(B)`. This is the standard simplifying assumption but can be wildly wrong when properties are correlated (e.g., `city = 'Mumbai'` and `country = 'India'` are not independent).
+Not yet handled. The current selectivity model assumes **independence** between properties — `selectivity(A AND B) = selectivity(A) × selectivity(B)`. This is the standard simplifying assumption but can be wildly wrong when properties are correlated.
+
+Example:
+```cypher
+MATCH (n:Person) WHERE n.city = 'Mumbai' AND n.country = 'India' RETURN n
+-- Independence assumption: selectivity = (1/500 cities) × (1/200 countries) = 1/100,000
+-- Reality: everyone in Mumbai is in India, so selectivity = 1/500
+-- The estimate is off by 200x!
+```
 
 Future work includes:
 - **Multi-column statistics** (joint distinct counts or dependency graphs)
@@ -172,6 +434,14 @@ Parameterized queries (`$param` syntax), prepared statements (`PREPARE`/`EXECUTE
 
 In optimizers that support parameterized queries, a key concern is **plan stability** — whether the same query template produces different plans for different parameter values. This is the phenomenon visualized by tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) as **plan diagrams**: color-coded maps showing how the optimal plan changes as selectivity varies.
 
+Example of plan instability in a hypothetical future CBO:
+```cypher
+-- Template: MATCH (n:Person) WHERE n.age > $threshold RETURN n
+-- With $threshold = 99 (selectivity 1%):  IndexScan is optimal
+-- With $threshold = 10 (selectivity 90%): LabelScan is optimal
+-- The optimizer must pick the right plan for each value
+```
+
 Since Samyama does not yet support parameterized queries, each query is planned independently. This means there is no plan caching or "plan sniffing" problem (where a cached plan is reused for parameter values it was not optimized for). When parameterized queries are added, the planner will need to decide between:
 - **Re-plan every time** (safe but slow)
 - **Cache plans** with invalidation when statistics change
@@ -183,23 +453,55 @@ Three join strategies are available:
 
 | Operator | Algorithm | When Used |
 | :--- | :--- | :--- |
-| **JoinOperator** | Hash Join | MATCH clauses share a variable (e.g., `MATCH (a)-[:X]->(b), (b)-[:Y]->(c)`) |
-| **LeftOuterJoinOperator** | Left Outer Hash Join | `OPTIONAL MATCH` — returns left record with NULLs when no right match |
-| **CartesianProductOperator** | Cross Product | No shared variables between MATCH clauses |
+| **JoinOperator** | Hash Join | MATCH clauses share a variable |
+| **LeftOuterJoinOperator** | Left Outer Hash Join | `OPTIONAL MATCH` |
+| **CartesianProductOperator** | Cross Product | No shared variables |
 
-The hash join materializes the left side into a `HashMap<Value, Vec<Record>>` and probes it for each right-side record. This is efficient for equality joins on node identity but does not support range joins.
+Example — hash join on a shared variable `b`:
+```cypher
+-- Two patterns sharing variable 'b' → HashJoin
+MATCH (a:Person)-[:WORKS_AT]->(b:Company)
+MATCH (b)<-[:INVESTED_IN]-(c:Fund)
+RETURN a.name, b.name, c.name
+-- Plan: HashJoin on 'b'
+--   Left:  NodeScan(Person) → Expand(WORKS_AT)
+--   Right: NodeScan(Fund) → Expand(INVESTED_IN)
+```
+
+Example — cross product with no shared variable:
+```cypher
+-- No shared variable → CartesianProduct (expensive!)
+MATCH (a:Person), (b:Product)
+RETURN a.name, b.name
+-- Plan: CartesianProduct (|Person| × |Product| rows)
+```
+
+Example — left outer join for optional patterns:
+```cypher
+-- OPTIONAL MATCH → LeftOuterHashJoin (NULLs for non-matches)
+MATCH (p:Person)
+OPTIONAL MATCH (p)-[:HAS_ADDRESS]->(a:Address)
+RETURN p.name, a.city
+-- Persons without addresses appear with a.city = NULL
+```
+
+The hash join materializes the left side into a `HashMap<Value, Vec<Record>>` and probes it for each right-side record.
 
 ### How is join order determined?
 
-Join order follows **query text order** — the planner does not reorder joins. The first MATCH clause becomes the left (build) side of the hash join, and the second becomes the right (probe) side. This means:
+Join order follows **query text order** — the planner does not reorder joins. The first MATCH clause becomes the left (build) side of the hash join, and the second becomes the right (probe) side.
 
+Example — same query, different join order, different performance:
 ```cypher
--- These produce DIFFERENT plans with different performance:
+-- Version 1: 1M Person nodes materialized into hash table (expensive build side)
 MATCH (a:Person), (b:Company) WHERE a.worksAt = b.name RETURN a, b
-MATCH (b:Company), (a:Person) WHERE a.worksAt = b.name RETURN a, b
-```
 
-In the first query, all `Person` nodes are materialized into the hash table; in the second, all `Company` nodes are. If there are 1M persons and 1K companies, the second form is significantly more memory-efficient.
+-- Version 2: 1K Company nodes materialized into hash table (cheap build side)
+MATCH (b:Company), (a:Person) WHERE a.worksAt = b.name RETURN a, b
+
+-- Version 2 is much more memory-efficient!
+-- Tip: put the smaller table first in the MATCH clause
+```
 
 **Not yet implemented**: Join reordering based on cardinality estimates, bushy join trees (the planner always produces left-deep trees), or adaptive joins that switch strategy mid-execution.
 
@@ -224,23 +526,53 @@ Three scan operators:
 | **IndexScanOperator** | B-tree range scan on property index | Index exists on `(label, property)` and WHERE has a matching `=`, `>`, `>=`, `<`, or `<=` predicate |
 | **VectorSearchOperator** | HNSW approximate nearest neighbor | `CALL db.index.vector.queryNodes(...)` |
 
-**Selection logic**: The planner checks whether the WHERE clause contains a simple binary comparison (`n.prop OP literal`) on the start node's property. If an index exists for that `(label, property)` pair, it emits an `IndexScanOperator`; otherwise it falls back to `NodeScanOperator`.
+Example showing the scan selection logic:
+```cypher
+-- No index on :Person(age) → NodeScanOperator + FilterOperator
+MATCH (n:Person) WHERE n.age > 30 RETURN n
+-- Plan: NodeScan(Person) → Filter(age > 30) → Project
+-- Scans ALL Person nodes, filters in memory
+
+-- After: CREATE INDEX ON :Person(age)
+MATCH (n:Person) WHERE n.age > 30 RETURN n
+-- Plan: IndexScan(Person.age > 30) → Project
+-- Scans ONLY nodes with age > 30 via B-tree range query
+```
 
 ### Can multiple indexes be used for a single query (index intersection)?
 
-**Not yet.** If a WHERE clause has multiple indexed predicates (`WHERE n.age > 30 AND n.city = 'Mumbai'`), only one index is used — the planner picks the first matching index it finds. The remaining predicate is applied as a post-scan filter via `FilterOperator`.
+**Not yet.** If a WHERE clause has multiple indexed predicates, only one index is used — the planner picks the first matching index it finds. The remaining predicate is applied as a post-scan filter.
 
-**Index intersection** (scanning both indexes independently and intersecting the result sets) is a planned optimization. This would allow queries with multiple selective predicates to benefit from all available indexes.
+Example:
+```cypher
+CREATE INDEX ON :Person(age)
+CREATE INDEX ON :Person(city)
+
+MATCH (n:Person) WHERE n.age > 30 AND n.city = 'Mumbai' RETURN n
+-- Today: IndexScan(Person.age > 30) → Filter(city = 'Mumbai')
+-- Ideal: IndexScan(age > 30) ∩ IndexScan(city = 'Mumbai') → much smaller result set
+```
+
+**Index intersection** (scanning both indexes independently and intersecting the result sets) is a planned optimization.
 
 ### Are there other scan limitations I should know about?
 
 Yes:
-- Only the **start node** of each MATCH path is considered for index scans — intermediate or end nodes always use label scan + filter
-- **Multi-label** nodes use the first matching index only
-- **OR predicates** (`WHERE n.age = 30 OR n.age = 40`) do not trigger index union scans — they fall through to a full label scan with filter
-- **Prefix/CONTAINS/ENDS WITH** string predicates do not use indexes
+- Only the **start node** of each MATCH path is considered for index scans — intermediate or end nodes always use label scan + filter:
+  ```cypher
+  -- Index on :Person(name) is used for 'a' (start node):
+  MATCH (a:Person {name: 'Alice'})-[:KNOWS]->(b:Person {name: 'Bob'}) RETURN b
+  -- Plan: IndexScan(a) → Expand(KNOWS) → Filter(b.name = 'Bob')
+  -- Note: b.name = 'Bob' is filtered in memory, not via index
+  ```
+- **OR predicates** do not trigger index union scans:
+  ```cypher
+  MATCH (n:Person) WHERE n.age = 30 OR n.age = 40 RETURN n
+  -- Falls back to full label scan + filter (even if age is indexed)
+  ```
+- **String predicates** (`CONTAINS`, `STARTS WITH`, `ENDS WITH`) do not use indexes
 
-To verify which scan your query uses, prefix with `EXPLAIN`.
+To verify which scan your query uses, always prefix with `EXPLAIN`.
 
 ### How does the query planner choose between possible plans?
 
@@ -251,7 +583,16 @@ Currently, the planner generates a **single plan** using heuristic rules — it 
 3. Combine multiple MATCH clauses via shared-variable detection → `JoinOperator` or `CartesianProductOperator`
 4. Stack remaining operators (filter, project, sort, limit) in fixed order
 
-There is no plan enumeration, no cost comparison between alternatives, and no join reordering.
+Example — the planner has no choice to make here; it follows fixed rules:
+```cypher
+MATCH (a:Person)-[:KNOWS]->(b:Person)
+WHERE a.name = 'Alice'
+RETURN b.name
+ORDER BY b.name
+LIMIT 10
+-- Plan (deterministic, no alternatives considered):
+-- IndexScan(Person.name='Alice') → Expand(KNOWS) → Project(b.name) → Sort(b.name) → Limit(10)
+```
 
 **Practical tip**: Since the planner follows query text order, you can influence performance by placing the most selective MATCH clause (the one that returns fewest results) first.
 
@@ -264,6 +605,18 @@ A cost-based optimizer (CBO), as implemented in mature systems like PostgreSQL, 
 3. **Compare** all candidates and select the lowest-cost plan
 4. **Prune** the search space using dynamic programming or heuristic pruning
 
+Example — a CBO would consider multiple plans for a 3-way join:
+```cypher
+MATCH (a:Person)-[:KNOWS]->(b:Person)-[:WORKS_AT]->(c:Company)
+WHERE a.age > 25 AND c.size > 1000
+RETURN a.name, c.name
+
+-- Plan A: Scan Person(age>25) → Expand(KNOWS) → Expand(WORKS_AT) → Filter(size>1000)
+-- Plan B: Scan Company(size>1000) → ReverseExpand(WORKS_AT) → ReverseExpand(KNOWS) → Filter(age>25)
+-- Plan C: Scan Person(age>25) → HashJoin → Scan Company(size>1000) [on intermediate]
+-- CBO estimates cost of each, picks cheapest
+```
+
 Tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) (developed at IISc Bangalore) help visualize CBO behavior by generating **plan diagrams** — color-coded maps showing which plan the optimizer selects at each point in the selectivity space. These visualizations reveal:
 - **Plan switches**: Where the optimizer changes its preferred plan
 - **Cost cliffs**: Sudden spikes in estimated cost at plan boundaries
@@ -274,25 +627,64 @@ Implementing a CBO for Samyama is a major roadmap item.
 
 ### What are "plan cliffs" and does Samyama have them?
 
-A **plan cliff** occurs when a small change in data distribution causes the optimizer to switch to a dramatically different (and often worse) plan. For example, a query might use a fast index scan for `selectivity < 0.05` but suddenly switch to a slow full scan at `selectivity = 0.051`, causing a 100x latency spike.
+A **plan cliff** occurs when a small change in data distribution causes the optimizer to switch to a dramatically different (and often worse) plan.
+
+Example in a hypothetical CBO:
+```
+Selectivity of WHERE age > $threshold:
+  threshold=95 → IndexScan  (fast, 5% of data)   → 2ms
+  threshold=94 → IndexScan  (fast, 6% of data)   → 2.4ms
+  threshold=93 → LabelScan! (slow, full table)    → 200ms  ← CLIFF!
+```
+
+The optimizer switches from index scan to full scan at a threshold, causing a 100x latency spike. Picasso visualizes these as sudden color changes in plan diagrams or sharp spikes in 3D cost surface plots.
 
 Since Samyama's planner uses fixed heuristic rules (not cost-based selection), it does not exhibit plan cliffs in the traditional sense — the same heuristic rules always produce the same plan structure regardless of data distribution. However, this also means the planner cannot adapt to scenarios where a different plan would be better.
 
 ### Can I evaluate alternative plans for the same query (Foreign Plan Costing)?
 
-**Not yet.** In Picasso terminology, **Foreign Plan Costing (FPC)** means forcing the optimizer to estimate the cost of a plan other than its preferred choice — to measure the "sub-optimality gap" (how much worse the chosen plan is compared to the theoretical best).
+**Not yet.** In Picasso terminology, **Foreign Plan Costing (FPC)** means forcing the optimizer to estimate the cost of a plan other than its preferred choice — to measure the "sub-optimality gap."
 
-Since Samyama generates only one plan, there are no alternative plans to compare against. When a cost-based optimizer is added, FPC-style analysis will become possible through `EXPLAIN` extensions that show rejected alternatives and their estimated costs.
+Example of what FPC analysis would look like:
+```
+Query: MATCH (n:Person) WHERE n.age > 25 RETURN n
+Chosen plan:  IndexScan(age > 25)     → estimated cost: 500
+Foreign plan: LabelScan + Filter      → estimated cost: 10,000
+Sub-optimality if forced to scan:     → 20x worse
+```
+
+Since Samyama generates only one plan, there are no alternative plans to compare against. When a cost-based optimizer is added, FPC-style analysis will become possible through `EXPLAIN` extensions.
 
 ### Can I visualize and compare execution plans (Plan Diffing)?
 
-`EXPLAIN` outputs a textual operator tree, which can be compared manually between different queries. There is no built-in plan diffing tool that automatically highlights differences between two plans (e.g., "Query A uses IndexScan while Query B uses NodeScan on the same label").
+`EXPLAIN` outputs a textual operator tree, which can be compared manually between different queries:
 
-Plan diffing, plan diagram generation, and graphical plan visualization are on the roadmap.
+```cypher
+-- Query A:
+EXPLAIN MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
+-- Output: IndexScanOperator(Person.name = 'Alice') → ProjectOperator
+
+-- Query B:
+EXPLAIN MATCH (n:Person) WHERE n.age > 25 RETURN n
+-- Output: NodeScanOperator(Person) → FilterOperator(age > 25) → ProjectOperator
+
+-- Manual diff: Query A uses IndexScan, Query B uses NodeScan + Filter
+-- → Create an index on :Person(age) to improve Query B
+```
+
+There is no built-in plan diffing tool that automatically highlights differences between two plans. Plan diffing, plan diagram generation, and graphical plan visualization are on the roadmap.
 
 ### Is there plan caching or AST caching?
 
 **Not yet.** Every query is parsed, planned, and executed from scratch — even if the identical query string was just executed. This contributes to the cold-start overhead visible in benchmarks (parsing: 54%, planning: 44% of total latency).
+
+Example of wasted work today:
+```cypher
+-- These three queries are parsed and planned independently, even though the plan is identical:
+MATCH (n:Person) WHERE n.name = 'Alice' RETURN n    -- parse: 22ms, plan: 18ms
+MATCH (n:Person) WHERE n.name = 'Alice' RETURN n    -- parse: 22ms, plan: 18ms (again!)
+MATCH (n:Person) WHERE n.name = 'Alice' RETURN n    -- parse: 22ms, plan: 18ms (again!)
+```
 
 Planned optimizations:
 - **AST caching**: Cache the parsed AST keyed by query string hash, skipping re-parsing for repeated queries
@@ -306,10 +698,24 @@ These optimizations are expected to reduce warm-query latency from ~40ms to ~10m
 **Predicate pushdown** moves filter conditions as close to the data source as possible — filtering early reduces the number of records flowing through the rest of the plan.
 
 Samyama performs limited predicate pushdown:
-- **Index pushdown**: When a WHERE predicate matches an indexed property, the `IndexScanOperator` applies the filter during the scan itself (only qualifying records are produced)
+- **Index pushdown**: When a WHERE predicate matches an indexed property, the `IndexScanOperator` applies the filter during the scan itself
 - **Label filtering**: `NodeScanOperator` only scans nodes with the specified label, not all nodes
 
-However, more advanced pushdown is not yet implemented:
+Example of pushdown in action vs. missing pushdown:
+```cypher
+-- Pushdown happens (index on :Person(name)):
+MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
+-- Plan: IndexScan(name='Alice')  ← filter is INSIDE the scan operator
+
+-- Pushdown does NOT happen (filter on join result):
+MATCH (a:Person)-[:KNOWS]->(b:Person)
+WHERE b.age > 30
+RETURN a.name, b.name
+-- Plan: NodeScan(Person) → Expand(KNOWS) → Filter(b.age > 30)
+-- Ideally, b.age > 30 would be pushed into the Expand or a secondary scan
+```
+
+More advanced pushdown is not yet implemented:
 - Predicates on **join results** are not pushed below the join
 - Predicates on **aggregation results** (HAVING-style) are not pushed below the aggregation
 - **Edge predicates** are not pushed into the `ExpandOperator`
@@ -323,9 +729,21 @@ However, more advanced pushdown is not yet implemented:
 - Query hints or optimizer directives of any kind
 
 The only way to influence plan selection today is:
-1. **Create property indexes** (`CREATE INDEX ON :Label(prop)`) — the planner will automatically prefer index scans when available
-2. **Reorder MATCH clauses** — place the most selective pattern first, since the planner processes them in text order
-3. **Use EXPLAIN** to verify the plan and adjust your query accordingly
+
+```cypher
+-- 1. Create indexes so the planner automatically uses them:
+CREATE INDEX ON :Person(name)
+CREATE INDEX ON :Person(age)
+
+-- 2. Reorder MATCH clauses (put most selective first):
+-- Slow (scans all 1M persons first):
+MATCH (a:Person), (b:Department {name: 'Engineering'}) ...
+-- Fast (scans 1 department first):
+MATCH (b:Department {name: 'Engineering'}), (a:Person) ...
+
+-- 3. Use EXPLAIN to verify the plan:
+EXPLAIN MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
+```
 
 Optimizer hints and plan forcing are planned for a future release.
 
@@ -339,6 +757,8 @@ The optimizer roadmap, roughly in priority order:
 | Plan memoization | Eliminate re-planning (~18ms savings) | Planned |
 | Parameterized queries (`$param`) | Enable plan reuse across parameter values | Planned |
 | `PROFILE` (runtime statistics) | Actual rows, timing per operator | Planned |
+| `DROP INDEX` / `SHOW INDEXES` | Index lifecycle management | Planned |
+| Composite indexes | Multi-property indexes | Planned |
 | AND-chain index selection | Use best index for multi-predicate WHERE | Planned |
 | Index intersection | Combine multiple index scans | Planned |
 | Predicate pushdown below joins | Reduce intermediate result sizes | Planned |
@@ -374,16 +794,74 @@ YIELD node, score
 
 Via SDK (Rust):
 ```rust
-let scores = client.page_rank(config, "Person", "KNOWS").await;
+use samyama_sdk::AlgorithmClient;
+
+let config = PageRankConfig { damping: 0.85, iterations: 20, tolerance: 1e-6 };
+let scores = client.page_rank(config, "Person", "KNOWS").await?;
+for (node_id, score) in &scores {
+    println!("Node {}: {:.4}", node_id, score);
+}
+```
+
+### How do I find shortest paths?
+
+Using Dijkstra for weighted shortest paths:
+```cypher
+CALL algo.dijkstra({
+  source_label: 'City', source_property: 'name', source_value: 'Mumbai',
+  target_label: 'City', target_property: 'name', target_value: 'Delhi',
+  edge_type: 'ROAD', weight_property: 'distance'
+})
+YIELD path, cost
+```
+
+Using BFS for unweighted shortest paths:
+```cypher
+CALL algo.bfs({
+  source_label: 'Person', source_property: 'name', source_value: 'Alice',
+  edge_type: 'KNOWS'
+})
+YIELD node, depth
 ```
 
 ### What is the CSR format and why is it used?
 
-**Compressed Sparse Row (CSR)** is a cache-efficient array-based representation of a graph. Algorithms project from `GraphStore` into CSR for OLAP workloads because sequential memory access patterns allow CPU prefetching with ~100% accuracy. See the [Analytical Power](./analytical_power.md) chapter.
+**Compressed Sparse Row (CSR)** is a cache-efficient array-based representation of a graph. Algorithms project from `GraphStore` into CSR for OLAP workloads because sequential memory access patterns allow CPU prefetching with ~100% accuracy.
+
+Example — a graph with 4 nodes and 5 edges in CSR:
+```
+Adjacency:  0→1, 0→2, 1→2, 2→3, 3→0
+
+out_offsets:  [0, 2, 3, 4, 5]   ← node i's edges start at out_offsets[i]
+out_targets:  [1, 2, 2, 3, 0]   ← target node IDs, packed contiguously
+weights:      [1.0, 1.0, ...]   ← optional edge weights
+
+To iterate node 0's neighbors: out_targets[0..2] = [1, 2]
+To iterate node 1's neighbors: out_targets[2..3] = [2]
+```
+
+This layout is ~10x faster than `HashMap<NodeId, Vec<NodeId>>` for iterative algorithms because it eliminates pointer chasing and hash lookups. See the [Analytical Power](./analytical_power.md) chapter.
 
 ### Does PCA support auto-selection of the solver?
 
-Yes. `PcaSolver::Auto` selects Randomized SVD when `n > 500` and `k < 0.8 * min(n, d)`, otherwise falls back to Power Iteration. The Randomized SVD solver uses the Halko-Martinsson-Tropp algorithm.
+Yes. `PcaSolver::Auto` selects Randomized SVD when `n > 500` and `k < 0.8 * min(n, d)`, otherwise falls back to Power Iteration.
+
+Example via Cypher:
+```cypher
+CALL algo.pca({
+  label: 'Document',
+  properties: ['feature1', 'feature2', 'feature3', 'feature4'],
+  components: 2,
+  solver: 'auto'
+})
+YIELD node, components
+```
+
+Via Rust SDK:
+```rust
+let config = PcaConfig { components: 2, solver: PcaSolver::Auto };
+let results = client.pca(config, "Document", &["feature1", "feature2", "feature3"]).await?;
+```
 
 ---
 
@@ -391,19 +869,71 @@ Yes. `PcaSolver::Auto` selects Randomized SVD when `n > 500` and `k < 0.8 * min(
 
 ### What distance metrics are supported?
 
-Three metrics: **Cosine**, **L2 (Euclidean)**, and **Dot Product**. The metric is specified when creating the vector index and is automatically matched during search.
+Three metrics: **Cosine**, **L2 (Euclidean)**, and **Dot Product**.
+
+Example — choosing the right metric:
+```cypher
+-- Cosine: best for text embeddings (direction matters, not magnitude)
+CREATE VECTOR INDEX FOR (d:Document) ON (d.embedding) OPTIONS {dimensions: 768, similarity: 'cosine'}
+
+-- L2: best for spatial data (absolute distance matters)
+CREATE VECTOR INDEX FOR (p:Point) ON (p.coords) OPTIONS {dimensions: 3, similarity: 'l2'}
+
+-- Dot Product: best for pre-normalized embeddings
+CREATE VECTOR INDEX FOR (i:Item) ON (i.features) OPTIONS {dimensions: 128, similarity: 'dot_product'}
+```
 
 ### What is Graph RAG?
 
-Graph RAG combines vector search with graph traversal in a single query. Instead of retrieving vectors and filtering in the application layer, Samyama applies graph filters *inside* the execution engine. This prevents the "filter-out-all-results" problem. See [AI & Vector Search](./ai_vector_search.md).
+Graph RAG combines vector search with graph traversal in a single query. Instead of retrieving vectors and filtering in the application layer, Samyama applies graph filters *inside* the execution engine.
+
+Example — find documents similar to a query, but only from a specific author's department:
+```cypher
+MATCH (a:Author {name: 'Alice'})-[:WORKS_IN]->(dept:Department)
+MATCH (d:Document)-[:AUTHORED_BY]->(colleague)-[:WORKS_IN]->(dept)
+CALL db.index.vector.queryNodes('Document', 'embedding', $query_vector, 10)
+YIELD node, score
+WHERE node = d
+RETURN d.title, score, colleague.name
+ORDER BY score DESC
+```
+
+This prevents the "filter-out-all-results" problem where a pure vector search returns documents from irrelevant departments. See [AI & Vector Search](./ai_vector_search.md).
 
 ### What is Agentic Enrichment (GAK)?
 
-**Generation-Augmented Knowledge (GAK)** is the inverse of RAG. Instead of using the database to help an LLM, the database uses an LLM to help build itself. When data is missing, an `AgentRuntime` autonomously fetches information and creates new nodes/edges. See [Agentic Enrichment](./agentic_enrichment.md).
+**Generation-Augmented Knowledge (GAK)** is the inverse of RAG. Instead of using the database to help an LLM, the database uses an LLM to help build itself.
+
+Example flow:
+```
+1. Event:    New node created: (:Company {name: 'Acme Corp'})
+2. Trigger:  AgentRuntime detects missing properties (industry, revenue, CEO)
+3. LLM Call: "What industry is Acme Corp in? Who is the CEO?"
+4. Result:   SET n.industry = 'Manufacturing', n.revenue = 5000000
+             CREATE (n)-[:LED_BY]->(:Person {name: 'Jane Smith', role: 'CEO'})
+5. Safety:   Schema validation + destructive query rejection before commit
+```
+
+See [Agentic Enrichment](./agentic_enrichment.md).
 
 ### What LLM providers are supported for NLQ?
 
-The `NLQClient` supports: **OpenAI**, **Google Gemini**, **Ollama** (local), and **Claude**. Configure via `NLQConfig` with provider, model, and API key.
+The `NLQClient` supports: **OpenAI**, **Google Gemini**, **Ollama** (local), and **Claude**.
+
+Example — natural language to Cypher:
+```rust
+let pipeline = NLQPipeline::new(NLQConfig {
+    provider: "openai".to_string(),
+    model: "gpt-4".to_string(),
+    api_key: env::var("OPENAI_API_KEY")?,
+})?;
+
+let cypher = pipeline.text_to_cypher(
+    "Who are Alice's friends that work at Google?",
+    &schema_summary
+).await?;
+// Returns: MATCH (a:Person {name: 'Alice'})-[:KNOWS]->(f:Person)-[:WORKS_AT]->(c:Company {name: 'Google'}) RETURN f.name
+```
 
 ---
 
@@ -417,16 +947,48 @@ The `NLQClient` supports: **OpenAI**, **Google Gemini**, **Ollama** (local), and
 - **Physics-based**: GSA, SA, HS, BMR, BWR
 - **Multi-objective**: NSGA-II, MOTLBO
 
+### How do I run an optimization solver?
+
+Via Cypher:
+```cypher
+-- Single-objective: minimize supply chain cost
+CALL algo.or.solve({
+  solver: 'jaya',
+  dimensions: 5,
+  bounds: [[0, 100], [0, 100], [0, 100], [0, 100], [0, 100]],
+  objective: 'minimize',
+  fitness_function: 'supply_chain_cost',
+  iterations: 1000,
+  population: 50
+})
+YIELD solution, fitness
+
+-- Multi-objective: Pareto-optimal trade-offs
+CALL algo.or.solve({
+  solver: 'nsga2',
+  dimensions: 3,
+  bounds: [[0, 1], [0, 1], [0, 1]],
+  objectives: ['minimize_cost', 'maximize_quality'],
+  population: 100,
+  generations: 200
+})
+YIELD pareto_front
+```
+
 ### Are the optimization solvers open-source or enterprise-only?
 
 All 22 solvers are in the **open-source** `samyama-optimization` crate. Enterprise adds GPU-accelerated constraint evaluation for large-scale problems.
 
 ### How do I choose the right solver?
 
-- **Single objective, no constraints**: Start with **Jaya** (parameter-free, good baseline)
-- **Single objective with constraints**: Try **PSO** or **GWO** (good constraint handling)
-- **Multi-objective**: Use **NSGA-II** (with Constrained Dominance Principle)
-- **Large search space**: Try **DE** (good for high-dimensional problems)
+| Scenario | Recommended Solver | Why |
+| :--- | :--- | :--- |
+| Simple optimization, no tuning | **Jaya** | Parameter-free, good baseline |
+| Constraints with penalty functions | **PSO** or **GWO** | Good constraint handling |
+| Multiple conflicting objectives | **NSGA-II** | Constrained Dominance Principle, Pareto front |
+| High-dimensional search space | **DE** | Good for 10+ dimensions |
+| Need global optimum, avoid local minima | **SA** (Simulated Annealing) | Probabilistic escape from local minima |
+| Teaching/learning-inspired | **TLBO** | No algorithm-specific parameters |
 
 ---
 
@@ -435,23 +997,52 @@ All 22 solvers are in the **open-source** `samyama-optimization` crate. Enterpri
 ### What are the latest benchmark numbers?
 
 On Mac Mini M4 (16GB RAM), v0.5.12:
-- **Node Ingestion**: 255K/s (CPU), 412K/s (GPU)
-- **Edge Ingestion**: 4.2M/s (CPU), 5.2M/s (GPU)
-- **Cypher OLTP**: 115K QPS at 1M nodes
-- **PageRank (1M)**: 92ms (CPU), 11ms (GPU, 8.2x speedup)
-- **Vector Search**: 15K QPS (128-dim, k=10)
+
+| Benchmark | CPU | GPU |
+| :--- | :---: | :---: |
+| **Node Ingestion** | 255K/s | 412K/s |
+| **Edge Ingestion** | 4.2M/s | 5.2M/s |
+| **Cypher OLTP (1M nodes)** | 115K QPS | — |
+| **PageRank (1M nodes)** | 92ms | 11ms (8.2x) |
+| **Vector Search (10K, 128d)** | 15K QPS | — |
 
 ### When should I use GPU acceleration?
 
-GPU acceleration is beneficial for graphs with **> 100,000 nodes**. Below this threshold, CPU-GPU memory transfer overhead dominates. For PCA specifically, the threshold is 50,000 nodes and > 32 dimensions.
+GPU acceleration is beneficial for graphs with **> 100,000 nodes**. Below this threshold, CPU-GPU memory transfer overhead dominates.
+
+Example — PageRank speedup at different scales:
+```
+10K nodes:   CPU 0.6ms vs GPU 9.3ms  → GPU is SLOWER (0.06x)
+100K nodes:  CPU 8.2ms vs GPU 3.1ms  → GPU wins (2.6x faster)
+1M nodes:    CPU 92ms  vs GPU 11ms   → GPU wins big (8.2x faster)
+```
+
+For PCA specifically, the threshold is 50,000 nodes and > 32 dimensions.
 
 ### Has Samyama been validated against industry benchmarks?
 
-Yes. Samyama achieved **28/28 (100%)** on the LDBC Graphalytics benchmark suite across 6 algorithms (BFS, PageRank, WCC, CDLP, LCC, SSSP) on both XS and S-size datasets. See [Performance & Benchmarks](./performance_benchmarks.md#ldbc-graphalytics-validation).
+Yes. Samyama achieved **28/28 (100%)** on the LDBC Graphalytics benchmark suite across 6 algorithms (BFS, PageRank, WCC, CDLP, LCC, SSSP) on both XS and S-size datasets.
+
+```bash
+# Run the validation yourself:
+cargo bench --bench graphalytics_benchmark -- --all
+```
+
+S-size datasets include cit-Patents (3.8M vertices), datagen-7_5-fb (633K vertices, 68M edges), and wiki-Talk (2.4M vertices). See [Performance & Benchmarks](./performance_benchmarks.md#ldbc-graphalytics-validation).
 
 ### What is the bottleneck in query execution?
 
-At 1M nodes, the bottleneck is the **language frontend** (parsing: 54%, planning: 44%), not execution (2%). The roadmap includes AST caching and plan memoization to reduce warm-query latency to ~10ms.
+At 1M nodes, the bottleneck is the **language frontend** (parsing: 54%, planning: 44%), not execution (2%):
+
+```
+Component          Time      % of total
+─────────────────────────────────────────
+Parse (Pest)       ~22ms     54%
+Plan (AST→Ops)     ~18ms     44%
+Execute (iterate)  <1ms       2%  ← actual graph work is sub-millisecond!
+```
+
+The roadmap includes AST caching and plan memoization to reduce warm-query latency to ~10ms.
 
 ---
 
@@ -459,23 +1050,67 @@ At 1M nodes, the bottleneck is the **language frontend** (parsing: 54%, planning
 
 ### How does licensing work?
 
-Enterprise uses **JET (JSON Enablement Token)**—an Ed25519-signed token containing org, edition, features, expiry, and machine fingerprint. 30-day grace period after expiry. See [Enterprise Edition](./samyama_enterprise.md#5-licensing--governance).
+Enterprise uses **JET (JSON Enablement Token)**—an Ed25519-signed token containing org, edition, features, expiry, and machine fingerprint. 30-day grace period after expiry.
+
+```bash
+# Check license status:
+redis-cli ADMIN.LICENSE
+
+# Set license file:
+SAMYAMA_LICENSE_FILE=/path/to/samyama.license cargo run --release --features gpu
+```
+
+See [Enterprise Edition](./samyama_enterprise.md#5-licensing--governance).
 
 ### How do I create a backup?
 
 ```bash
-redis-cli ADMIN.BACKUP CREATE    # Full snapshot
-redis-cli ADMIN.BACKUP LIST      # List backups
-redis-cli ADMIN.BACKUP VERIFY 5  # Verify integrity
+# Full snapshot
+redis-cli ADMIN.BACKUP CREATE
+
+# List all backups
+redis-cli ADMIN.BACKUP LIST
+
+# Verify integrity of backup #5
+redis-cli ADMIN.BACKUP VERIFY 5
+
+# Restore from backup
+redis-cli ADMIN.BACKUP RESTORE 5
 ```
 
 ### What is Point-in-Time Recovery (PITR)?
 
-PITR replays archived WAL entries against a snapshot to restore the database to an exact moment. If someone accidentally deletes data at 10:30:05, you can restore to 10:30:04 with microsecond precision.
+PITR replays archived WAL entries against a snapshot to restore the database to an exact moment.
+
+Example scenario:
+```
+10:30:00  Backup snapshot taken
+10:30:04  Normal writes happening
+10:30:05  Accidental: DELETE (n:Customer) WHERE n.region = 'APAC'   ← oops!
+10:30:06  More writes
+
+# Restore to 10:30:04 (before the accidental delete):
+redis-cli ADMIN.PITR RESTORE "2026-03-04T10:30:04.000000"
+# All APAC customers are back, writes after 10:30:04 are lost
+```
 
 ### How does multi-tenancy work?
 
-Each tenant gets a dedicated RocksDB Column Family with per-tenant resource quotas (memory, storage, query time). Compaction is independent per tenant—one tenant's write-heavy workload won't affect others. See [Observability & Multi-tenancy](./observability_multi_tenancy.md).
+Each tenant gets a dedicated RocksDB Column Family with per-tenant resource quotas (memory, storage, query time). Compaction is independent per tenant—one tenant's write-heavy workload won't affect others.
+
+Example — querying within a specific tenant:
+```bash
+# Create a graph in tenant "acme"
+redis-cli GRAPH.QUERY acme "CREATE (n:User {name: 'Alice'})"
+
+# Query within that tenant (isolated from other tenants)
+redis-cli GRAPH.QUERY acme "MATCH (n:User) RETURN n.name"
+
+# Different tenant, different data
+redis-cli GRAPH.QUERY globex "MATCH (n:User) RETURN n.name"  -- returns different results
+```
+
+See [Observability & Multi-tenancy](./observability_multi_tenancy.md).
 
 ---
 
@@ -483,20 +1118,42 @@ Each tenant gets a dedicated RocksDB Column Family with per-tenant resource quot
 
 ### What RDF serialization formats are supported?
 
-| Format | Read | Write |
-| :--- | :---: | :---: |
-| Turtle (.ttl) | ✅ | ✅ |
-| N-Triples (.nt) | ✅ | ✅ |
-| RDF/XML (.rdf) | ✅ | ✅ |
-| JSON-LD (.jsonld) | ❌ | ✅ |
+| Format | Read | Write | Example |
+| :--- | :---: | :---: | :--- |
+| Turtle (.ttl) | ✅ | ✅ | `@prefix ex: <http://example.org/> . ex:Alice a ex:Person .` |
+| N-Triples (.nt) | ✅ | ✅ | `<http://example.org/Alice> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Person> .` |
+| RDF/XML (.rdf) | ✅ | ✅ | `<rdf:Description rdf:about="http://example.org/Alice">` |
+| JSON-LD (.jsonld) | ❌ | ✅ | `{"@id": "http://example.org/Alice", "@type": "Person"}` |
 
 ### Is SPARQL fully implemented?
 
-SPARQL parser infrastructure is in place (via the `spargebra` crate), but query execution is not yet operational. The focus is on the OpenCypher engine. See [RDF & SPARQL](./rdf_sparql.md).
+SPARQL parser infrastructure is in place (via the `spargebra` crate), but query execution is not yet operational. The focus is on the OpenCypher engine.
+
+Example of what will be supported:
+```sparql
+PREFIX ex: <http://example.org/>
+SELECT ?name ?age
+WHERE {
+  ?person a ex:Person .
+  ?person ex:name ?name .
+  ?person ex:age ?age .
+  FILTER (?age > 25)
+}
+ORDER BY ?name
+```
+
+See [RDF & SPARQL](./rdf_sparql.md).
 
 ### Can I use RDF and property graph data together?
 
 A mapping framework (`MappingConfig`) is defined for converting between RDF triples and property graph nodes/edges. Automatic bidirectional conversion is on the roadmap.
+
+Example of the conceptual mapping:
+```
+RDF Triple:  <ex:Alice>  <ex:knows>  <ex:Bob>
+                  ↕              ↕           ↕
+Property Graph:  (:Person {uri: 'ex:Alice'}) -[:knows]-> (:Person {uri: 'ex:Bob'})
+```
 
 ---
 
@@ -515,10 +1172,78 @@ A mapping framework (`MappingConfig`) is defined for converting between RDF trip
 
 Yes. The Rust SDK's `EmbeddedClient` runs the full engine in-process with zero network overhead:
 ```rust
+use samyama_sdk::{EmbeddedClient, SamyamaClient};
+
 let client = EmbeddedClient::new();
-client.query("default", "CREATE (n:Person {name: 'Alice'})").await?;
+
+// Write data
+client.query("default", "CREATE (n:Person {name: 'Alice', age: 30})").await?;
+client.query("default", "CREATE (n:Person {name: 'Bob', age: 25})").await?;
+
+// Query data
+let result = client.query("default", "MATCH (n:Person) WHERE n.age > 28 RETURN n.name").await?;
+println!("{:?}", result.rows);  // [["Alice"]]
+```
+
+### How do I use the CLI?
+
+```bash
+# Single query
+samyama-cli query "MATCH (n:Person) RETURN n.name, n.age" --format table
+
+# Output:
+# +-------+-----+
+# | n.name| n.age|
+# +-------+-----+
+# | Alice |  30  |
+# | Bob   |  25  |
+# +-------+-----+
+
+# Interactive REPL
+samyama-cli shell
+samyama> MATCH (n) RETURN count(n)
+samyama> CREATE (n:City {name: 'Mumbai', population: 20000000})
+
+# Server status
+samyama-cli status --format json
+
+# Health check
+samyama-cli ping
 ```
 
 ### Does the Python SDK support algorithms directly?
 
 The Python SDK supports Cypher queries (including algorithm calls via `CALL algo.*`). Direct method-level algorithm access (like the Rust SDK's `AlgorithmClient`) is available only in the Rust SDK's embedded mode.
+
+```python
+from samyama import SamyamaClient
+
+# Embedded mode (no server required)
+client = SamyamaClient.embedded()
+
+# Create data
+client.query("default", "CREATE (a:Person {name: 'Alice'})-[:KNOWS]->(b:Person {name: 'Bob'})")
+
+# Run PageRank via Cypher
+result = client.query("default", """
+    CALL algo.pagerank({label: 'Person', edge_type: 'KNOWS', iterations: 20})
+    YIELD node, score
+""")
+```
+
+### How do I use the TypeScript SDK?
+
+```typescript
+import { SamyamaClient } from 'samyama-sdk';
+
+const client = SamyamaClient.connectHttp('http://localhost:8080');
+
+// Query
+const result = await client.query('default', 'MATCH (n:Person) RETURN n.name');
+console.log(result.rows);
+
+// Create data
+await client.query('default', `
+  CREATE (a:Person {name: 'Alice'})-[:KNOWS]->(b:Person {name: 'Bob'})
+`);
+```
