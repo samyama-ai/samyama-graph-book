@@ -89,6 +89,107 @@ Samyama provides per-query atomicity via RocksDB `WriteBatch` + WAL. Interactive
 
 ---
 
+## Query Planner & Optimizer
+
+### What cost model does the query planner use?
+
+Samyama currently uses a **heuristic-based planner** rather than a full cost-based optimizer. The planner collects statistics via `GraphStatistics` (label counts, edge type counts, average degree, and per-property selectivity estimates), and these are displayed in `EXPLAIN` output. However, the planner does not yet generate multiple candidate plans and compare them by estimated cost — it follows a single greedy path based on heuristic rules:
+
+1. **Index priority**: If a property index exists for a WHERE predicate, use `IndexScanOperator`; otherwise fall back to `NodeScanOperator` (full label scan).
+2. **Join strategy**: If MATCH clauses share a variable, use `JoinOperator` (hash join); otherwise use `CartesianProductOperator`.
+3. **Operator stacking**: Filter → Unwind → Write → Project → Sort → Limit, in fixed order.
+
+A full cost-based optimizer that evaluates alternative plans (join reordering, index intersection, scan strategy comparison) is on the roadmap. See the [Query Optimization](./query_optimization.md) chapter.
+
+### What cardinality estimation techniques are used?
+
+`GraphStatistics` provides three estimation methods:
+
+| Method | What It Returns | Complexity |
+| :--- | :--- | :---: |
+| `estimate_label_scan(label)` | Exact node count for a label (from `label_index`) | O(1) |
+| `estimate_expand(edge_type)` | Edge count for a type (from `edge_type_index`) | O(1) |
+| `estimate_equality_selectivity(label, prop)` | `1.0 / distinct_count` for the property | O(1) |
+
+Statistics are computed by sampling the first 1,000 nodes per label and tracking property presence, null fractions, and distinct value counts. These estimates are currently surfaced in `EXPLAIN` output but are **not yet used to drive plan selection**. Future work includes histogram-based estimation, multi-column correlation tracking, and using these estimates to rank candidate plans.
+
+### Does Samyama support parameterized or templatized queries?
+
+**Not yet.** All queries must include literal values inline:
+
+```cypher
+-- This works:
+MATCH (n:Person {age: 30}) RETURN n
+
+-- This does NOT work (no parameter syntax):
+MATCH (n:Person {age: $age}) RETURN n
+```
+
+Parameterized queries (`$param` syntax), prepared statements (`PREPARE`/`EXECUTE`), and query templates are on the roadmap. Today, applications must construct complete Cypher strings with interpolated values. Use the NLQ pipeline or SDK helper methods to safely construct queries.
+
+### What join algorithms does Samyama use?
+
+Three join strategies are available:
+
+| Operator | Algorithm | When Used |
+| :--- | :--- | :--- |
+| **JoinOperator** | Hash Join | MATCH clauses share a variable (e.g., `MATCH (a)-[:X]->(b), (b)-[:Y]->(c)`) |
+| **LeftOuterJoinOperator** | Left Outer Hash Join | `OPTIONAL MATCH` — returns left record with NULLs when no right match |
+| **CartesianProductOperator** | Cross Product | No shared variables between MATCH clauses |
+
+The hash join materializes the left side into a `HashMap<Value, Vec<Record>>` and probes it for each right-side record. This is efficient for equality joins on node identity but does not support range joins.
+
+**Not yet implemented**: Merge join (sorted inputs), nested-loop join (for small right sides), or adaptive/streaming joins. Join order follows the query text order — the planner does not reorder joins based on estimated cardinalities.
+
+### What scan operators are available, and how is one chosen?
+
+Three scan operators:
+
+| Operator | Access Method | When Chosen |
+| :--- | :--- | :--- |
+| **NodeScanOperator** | Full label scan via `label_index` | Default — no index matches the WHERE predicate |
+| **IndexScanOperator** | B-tree range scan on property index | Index exists on `(label, property)` and WHERE has a matching `=`, `>`, `>=`, `<`, or `<=` predicate |
+| **VectorSearchOperator** | HNSW approximate nearest neighbor | `CALL db.index.vector.queryNodes(...)` |
+
+**Selection logic**: The planner checks whether the WHERE clause contains a simple binary comparison (`n.prop OP literal`) on the start node's property. If an index exists for that `(label, property)` pair, it emits an `IndexScanOperator`; otherwise it falls back to `NodeScanOperator`.
+
+**Current limitations**:
+- Only the **start node** of each MATCH path is considered for index scans
+- Only **single predicate** conditions trigger index use — `AND` chains with multiple indexed properties do not yet use index intersection
+- Multi-label nodes use the first matching index only
+
+To verify which scan your query uses, prefix with `EXPLAIN`.
+
+### How does the query planner choose between possible plans?
+
+Currently, the planner generates a **single plan** using heuristic rules — it does not enumerate or compare alternative plans:
+
+1. Parse the Cypher AST
+2. For each MATCH clause, check for index applicability → emit `IndexScanOperator` or `NodeScanOperator`
+3. Combine multiple MATCH clauses via shared-variable detection → `JoinOperator` or `CartesianProductOperator`
+4. Stack remaining operators (filter, project, sort, limit) in fixed order
+
+There is no plan enumeration, no cost comparison between alternatives, and no join reordering. The `_optimize` field exists in the `QueryPlanner` struct as a placeholder for future cost-based optimization.
+
+**Practical tip**: Since the planner follows query text order, you can influence performance by placing the most selective MATCH clause (the one that returns fewest results) first.
+
+### Can I force a specific execution plan or provide optimizer hints?
+
+**Not yet.** Samyama does not currently support:
+- `USING INDEX` directives (Neo4j-style)
+- `USING SCAN` to force a label scan
+- `USING JOIN ON` to force a specific join variable
+- Query hints or optimizer directives of any kind
+
+The only way to influence plan selection today is:
+1. **Create property indexes** (`CREATE INDEX ON :Label(prop)`) — the planner will automatically prefer index scans when available
+2. **Reorder MATCH clauses** — place the most selective pattern first, since the planner processes them in text order
+3. **Use EXPLAIN** to verify the plan and adjust your query accordingly
+
+Optimizer hints and plan forcing are planned for a future release.
+
+---
+
 ## Graph Algorithms
 
 ### What algorithms are available?
