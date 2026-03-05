@@ -162,7 +162,7 @@ RETURN a.name, b.name
 
 ### How many physical operators does the engine have?
 
-28 operators covering scan, traversal, filter, join, aggregation, sort, write, index, and specialized operations. See the [operator table](./query_engine.md#all-28-physical-operators).
+33 operators covering scan, traversal, filter, join, aggregation, sort, write, index, constraint, and specialized operations. See the [operator table](./query_engine.md#all-33-physical-operators).
 
 ### Does Samyama support transactions?
 
@@ -411,21 +411,19 @@ Statistics are **not auto-refreshed** — they are recomputed each time `EXPLAIN
 
 ### How does the planner handle cardinality estimation errors?
 
-It currently does not. Since statistics are not used to drive plan decisions, estimation errors do not cause suboptimal plan selection — but they also cannot *prevent* it. The planner always follows the same heuristic path regardless of data distribution.
+Since v0.6.0, statistics drive cost-based plan selection (join order, index choice). This means cardinality estimation errors can now cause suboptimal plans — for example, choosing a less selective index or the wrong join order.
 
-Example of where estimation errors would matter in a future CBO:
 ```cypher
 -- If the planner estimates 100 rows but there are actually 1,000,000:
 MATCH (a:Person)-[:KNOWS]->(b:Person)
 WHERE a.city = 'Mumbai'
 RETURN a.name, b.name
 
--- A CBO might choose hash join (good for 100 rows)
--- but nested-loop would be catastrophic for 1M rows
--- Accurate cardinality estimates prevent this mistake
+-- The CBO might build the hash table on the wrong side
+-- or choose an index that isn't actually the most selective
 ```
 
-In mature optimizers, cardinality estimation errors can cause severe performance problems. Tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) visualize these errors as **cardinality diagrams**, mapping estimation accuracy across the selectivity space to expose where the optimizer's statistics are most inaccurate.
+Mitigations: use `EXPLAIN` to verify estimates, and ensure statistics are fresh (they are recomputed on each `EXPLAIN` call). In mature optimizers, cardinality estimation errors can cause severe performance problems. Tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) visualize these errors as **cardinality diagrams**, mapping estimation accuracy across the selectivity space to expose where the optimizer's statistics are most inaccurate.
 
 ### What about multi-column correlations and compound predicates?
 
@@ -643,7 +641,7 @@ Tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) (developed at
 - **Nervous regions**: Areas where small selectivity changes cause frequent plan switches
 - **Robust plans**: Plans that perform well across a wide range of selectivities
 
-Implementing a CBO for Samyama is a major roadmap item.
+Since v0.6.0, Samyama has a cost-based planner that uses cardinality estimates for join reordering and index selection. Extending it with full plan enumeration, per-operator cost formulas, and dynamic programming search (as described above) is a future goal.
 
 ### What are "plan cliffs" and does Samyama have them?
 
@@ -790,7 +788,7 @@ The optimizer roadmap, roughly in priority order:
 
 ### What algorithms are available?
 
-14 algorithms in the `samyama-graph-algorithms` crate:
+13 algorithms in the `samyama-graph-algorithms` crate:
 
 | Category | Algorithms |
 | :--- | :--- |
@@ -934,7 +932,7 @@ See [Agentic Enrichment](./agentic_enrichment.md).
 
 ### What LLM providers are supported for NLQ?
 
-The `NLQClient` supports: **OpenAI**, **Google Gemini**, **Ollama** (local), and **Claude**.
+The `NLQClient` supports: **OpenAI**, **Google Gemini**, **Ollama** (local), **Anthropic** (Claude API), **Claude Code**, and **Azure OpenAI**. A **Mock** provider is also available for testing.
 
 Example — natural language to Cypher:
 ```rust
