@@ -63,20 +63,25 @@ jobs:
             research/arxiv/samyama.pdf
             research/arxiv/figures/
 
-      - name: Copy arxiv PDF for release
-        run: cp research/arxiv/samyama.pdf samyama_arxiv.pdf
+      - name: Create arxiv tarball and copy PDF for release
+        run: |
+          cd research/arxiv
+          tar czf ../../samyama-arxiv.tar.gz samyama.tex samyama.bib figures/
+          cp samyama.pdf ../../samyama_arxiv.pdf
 
-      - name: Release PDFs
+      - name: Release PDFs and tarball
         uses: softprops/action-gh-release@v1
         if: github.ref == 'refs/heads/main'
         with:
           files: |
             samyama_paper.pdf
             samyama_arxiv.pdf
+            samyama-arxiv.tar.gz
           tag_name: latest
           body: |
             Latest version of the Samyama research paper.
             - **samyama_paper.pdf** — Pandoc-generated PDF from Markdown
             - **samyama_arxiv.pdf** — arxiv-ready LaTeX PDF (v0.6.0, with reviewer feedback)
+            - **samyama-arxiv.tar.gz** — arxiv upload bundle (tex + bib + figures)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

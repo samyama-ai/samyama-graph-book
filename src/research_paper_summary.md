@@ -15,6 +15,7 @@ March 2026 | v0.6.0 | [GitHub](https://github.com/samyama-ai/samyama-graph) | [B
 Download the paper from our GitHub Releases:
 - [Samyama Paper PDF](https://github.com/samyama-ai/samyama-graph-book/releases/latest/download/samyama_paper.pdf) — Pandoc-generated from Markdown
 - [Samyama arxiv PDF](https://github.com/samyama-ai/samyama-graph-book/releases/latest/download/samyama_arxiv.pdf) — arxiv-ready LaTeX version (v0.6.0, with reviewer feedback addressed)
+- [arxiv Upload Bundle](https://github.com/samyama-ai/samyama-graph-book/releases/latest/download/samyama-arxiv.tar.gz) — tex + bib + figures for arxiv submission
 
 ---
 
