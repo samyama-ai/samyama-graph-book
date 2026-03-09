@@ -237,9 +237,9 @@ S-size datasets: cit-Patents (3.8M vertices, 16.5M edges), datagen-7_5-fb (633K 
 
 Beyond Graphalytics (algorithm correctness), Samyama includes benchmark harnesses for two additional LDBC workloads:
 
-- **LDBC SNB Interactive**: 21 queries (IS1–IS7, IC1–IC14) + 8 update operations on the Social Network Benchmark SF1 dataset. Tests OLTP-style point lookups and multi-hop traversals.
-- **LDBC SNB Business Intelligence**: 20 complex analytical queries (BI-1 to BI-20) testing OLAP-style aggregation over the social network graph.
-- **LDBC FinBench**: 40+ queries (CR1–CR12, SR1–SR6, RW1–RW3, W1–W19) modeling financial transaction networks with accounts, transfers, loans, and fraud detection patterns.
+- **LDBC SNB Interactive**: 21 read queries (IS1–IS7, IC1–IC14) all passing, plus 8 update operations, on the Social Network Benchmark SF1 dataset (3.2M nodes, 17.3M edges). Tests OLTP-style point lookups and multi-hop traversals.
+- **LDBC SNB Business Intelligence**: 20 complex analytical queries (BI-1 to BI-20) testing OLAP-style aggregation. 16/20 queries pass; BI-17 (friend triangles combined with message propagation) times out due to combinatorial explosion on SF1, blocking BI-18–20.
+- **LDBC FinBench**: 40 queries (CR1–CR12, SR1–SR6, RW1–RW3, W1–W19) all passing, modeling financial transaction networks with accounts, transfers, loans, and fraud detection patterns on synthetic SF1 data.
 
 Data loaders (`ldbc_loader`, `finbench_loader`) and benchmark harnesses are included in the repository.
 
