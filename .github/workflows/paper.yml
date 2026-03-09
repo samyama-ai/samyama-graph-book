@@ -41,6 +41,28 @@ jobs:
           name: samyama-research-paper
           path: samyama_paper.pdf
 
+      - name: Convert SVG figures to PDF for arxiv
+        run: |
+          cd research
+          for f in images/*.svg; do
+            rsvg-convert -f pdf -o "arxiv/figures/$(basename "$f" .svg).pdf" "$f"
+          done
+
+      - name: Build arxiv LaTeX
+        run: |
+          cd research/arxiv
+          tectonic samyama.tex
+
+      - name: Upload arxiv artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: samyama-arxiv
+          path: |
+            research/arxiv/samyama.tex
+            research/arxiv/samyama.bib
+            research/arxiv/samyama.pdf
+            research/arxiv/figures/
+
       - name: Release PDF
         uses: softprops/action-gh-release@v1
         if: github.ref == 'refs/heads/main'
