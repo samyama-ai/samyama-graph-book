@@ -63,12 +63,20 @@ jobs:
             research/arxiv/samyama.pdf
             research/arxiv/figures/
 
-      - name: Release PDF
+      - name: Copy arxiv PDF for release
+        run: cp research/arxiv/samyama.pdf samyama_arxiv.pdf
+
+      - name: Release PDFs
         uses: softprops/action-gh-release@v1
         if: github.ref == 'refs/heads/main'
         with:
-          files: samyama_paper.pdf
+          files: |
+            samyama_paper.pdf
+            samyama_arxiv.pdf
           tag_name: latest
-          body: "Latest version of the Samyama research paper."
+          body: |
+            Latest version of the Samyama research paper.
+            - **samyama_paper.pdf** — Pandoc-generated PDF from Markdown
+            - **samyama_arxiv.pdf** — arxiv-ready LaTeX PDF (v0.6.0, with reviewer feedback)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

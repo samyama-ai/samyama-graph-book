@@ -6,20 +6,21 @@ We have published a comprehensive research paper detailing the architecture, des
 
 **Authors**: [Madhulatha Mandarapu](https://www.linkedin.com/in/madhulatha-mandarapu-72bb6b2a/) (madhulatha@samyama.ai), [Sandeep Kunkunuru](https://www.linkedin.com/in/sandeepkunkunuru/) (sandeep@samyama.ai)
 
-March 2026 | v0.5.12 | [GitHub](https://github.com/samyama-ai/samyama-graph) | [Book](https://samyama-ai.github.io/samyama-graph-book/)
+March 2026 | v0.6.0 | [GitHub](https://github.com/samyama-ai/samyama-graph) | [Book](https://samyama-ai.github.io/samyama-graph-book/)
 
 **Keywords**: Graph Databases, Vector Search, Distributed Systems, Metaheuristic Optimization, Rust, GPU Acceleration, Agentic AI, RDF, LDBC.
 
 ## Download PDF
 
-You can download the professional PDF version of this paper (arXiv-ready) from our GitHub Releases:
-[Download Samyama Paper PDF](https://github.com/samyama-ai/samyama-graph-book/releases/latest/download/samyama_paper.pdf)
+Download the paper from our GitHub Releases:
+- [Samyama Paper PDF](https://github.com/samyama-ai/samyama-graph-book/releases/latest/download/samyama_paper.pdf) — Pandoc-generated from Markdown
+- [Samyama arxiv PDF](https://github.com/samyama-ai/samyama-graph-book/releases/latest/download/samyama_arxiv.pdf) — arxiv-ready LaTeX version (v0.6.0, with reviewer feedback addressed)
 
 ---
 
 ## Abstract
 
-Modern data architectures are fragmented across graph databases, vector stores, analytics engines, and optimization solvers, resulting in complex ETL pipelines, synchronization overhead, and operational burden. We present **Samyama**, a high-performance, distributed graph-vector database written in Rust that unifies these workloads into a single engine. Samyama combines a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor with 28 physical operators, a dedicated CSR-based analytics engine, and native RDF/SPARQL support. The system integrates 22 metaheuristic optimization solvers directly into its query language, implements HNSW vector indexing with Graph RAG capabilities, and introduces "Agentic Enrichment" for autonomous graph expansion via LLMs. A comprehensive SDK ecosystem (Rust, Python, TypeScript) and CLI provide multiple access patterns.
+Modern data architectures are fragmented across graph databases, vector stores, analytics engines, and optimization solvers, resulting in complex ETL pipelines and synchronization overhead. We present **Samyama**, a high-performance graph-vector database written in Rust that unifies these workloads into a single engine. Samyama combines a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor with 30 physical operators, a cost-based query planner with plan enumeration and predicate pushdown, a dedicated CSR-based analytics engine, and native RDF/SPARQL support. The system integrates 22 metaheuristic optimization solvers directly into its query language, implements HNSW vector indexing with Graph RAG capabilities, and introduces "Agentic Enrichment" for autonomous graph expansion via LLMs. A comprehensive SDK ecosystem (Rust, Python, TypeScript) and CLI provide multiple access patterns.
 
 The **Samyama Enterprise Edition** adds GPU acceleration via wgpu (Metal, Vulkan, DX12), production-grade observability, point-in-time recovery, and hardened high availability with HTTP/2 Raft transport.
 
