@@ -113,7 +113,7 @@ Key terms and concepts used throughout this book, organized alphabetically.
 : A formal grammar type that uses ordered choice (tries alternatives left-to-right). Samyama's Cypher parser uses the Pest PEG library.
 
 **PhysicalOperator**
-: The trait implemented by all 28 execution operators. Each operator processes `RecordBatch`es in a pull-based Volcano model.
+: The trait implemented by all 35 execution operators. Each operator processes `RecordBatch`es in a pull-based Volcano model.
 
 **PITR (Point-in-Time Recovery)**
 : Enterprise feature that restores the database to an exact timestamp by replaying WAL entries against a snapshot.

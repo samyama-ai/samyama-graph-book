@@ -54,20 +54,21 @@ pub trait PhysicalOperator {
 
 Instead of fetching one row at a time, each `PhysicalOperator` processes a `RecordBatch`.
 
-### All 28 Physical Operators
+### All 35 Physical Operators
 
-Samyama implements 28 physical operators, organized by function:
+Samyama implements 35 physical operators, organized by function:
 
 | Category | Operators |
 | :--- | :--- |
-| **Scan** | `NodeScanOperator`, `IndexScanOperator` |
-| **Traversal** | `ExpandOperator`, `ShortestPathOperator` |
+| **Scan** | `NodeScanOperator`, `IndexScanOperator`, `NodeByIdOperator` |
+| **Traversal** | `ExpandOperator`, `ExpandIntoOperator`, `ShortestPathOperator` |
 | **Filter & Transform** | `FilterOperator`, `ProjectOperator`, `UnwindOperator`, `WithBarrierOperator` |
 | **Join** | `JoinOperator`, `LeftOuterJoinOperator`, `CartesianProductOperator` |
 | **Aggregation & Sort** | `AggregateOperator`, `SortOperator`, `LimitOperator`, `SkipOperator` |
 | **Write (Mutating)** | `CreateNodeOperator`, `CreateEdgeOperator`, `CreateNodesAndEdgesOperator`, `MatchCreateEdgeOperator`, `MergeOperator`, `DeleteOperator`, `SetPropertyOperator`, `RemovePropertyOperator`, `ForeachOperator` |
-| **Index** | `CreateIndexOperator`, `CreateVectorIndexOperator` |
-| **Specialized** | `VectorSearchOperator`, `AlgorithmOperator` | 
+| **Index & Constraints** | `CreateIndexOperator`, `CompositeCreateIndexOperator`, `CreateVectorIndexOperator`, `DropIndexOperator`, `CreateConstraintOperator` |
+| **Schema Inspection** | `ShowIndexesOperator`, `ShowConstraintsOperator` |
+| **Specialized** | `VectorSearchOperator`, `AlgorithmOperator` |
 
 By processing batches:
 *   **Amortized Overhead**: Calling virtual functions per batch instead of per row drops L1 instruction cache misses significantly.

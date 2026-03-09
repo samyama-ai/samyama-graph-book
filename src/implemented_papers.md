@@ -9,7 +9,7 @@ Samyama Graph Database is built on the foundations of cutting-edge computer scie
 ### Query Execution
 *   **Volcano Iterator Model**
     *   *Paper:* "Volcano — An Extensible and Parallel Query Evaluation System" (Graefe, 1994)
-    *   *Implementation:* `src/query/executor/operator.rs` — 28 physical operators using pull-based `next_batch()` with vectorized `RecordBatch` processing (batch size 1,024)
+    *   *Implementation:* `src/query/executor/operator.rs` — 35 physical operators using pull-based `next_batch()` with vectorized `RecordBatch` processing (batch size 1,024)
     *   *Key insight:* Lazy evaluation avoids materializing intermediate results; each operator pulls only what downstream needs
 
 *   **Late Materialization**

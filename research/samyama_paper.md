@@ -10,7 +10,7 @@ March 2026 | v0.5.12 | [GitHub](https://github.com/samyama-ai/samyama-graph) | [
 
 ## Abstract
 
-Modern data architectures are fragmented across graph databases, vector stores, analytics engines, and optimization solvers, resulting in complex ETL pipelines, synchronization overhead, and operational burden. We present **Samyama**, a high-performance, distributed graph-vector database written in Rust that unifies these workloads into a single engine. Samyama combines a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor with 28 physical operators, a dedicated CSR-based analytics engine, and native RDF/SPARQL support. The system integrates 22 metaheuristic optimization solvers directly into its query language, implements HNSW vector indexing [1] with Graph RAG capabilities, and introduces "Agentic Enrichment" for autonomous graph expansion via LLMs. A comprehensive SDK ecosystem (Rust, Python, TypeScript) and CLI provide multiple access patterns.
+Modern data architectures are fragmented across graph databases, vector stores, analytics engines, and optimization solvers, resulting in complex ETL pipelines, synchronization overhead, and operational burden. We present **Samyama**, a high-performance, distributed graph-vector database written in Rust that unifies these workloads into a single engine. Samyama combines a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor with 35 physical operators, a dedicated CSR-based analytics engine, and native RDF/SPARQL support. The system integrates 22 metaheuristic optimization solvers directly into its query language, implements HNSW vector indexing [1] with Graph RAG capabilities, and introduces "Agentic Enrichment" for autonomous graph expansion via LLMs. A comprehensive SDK ecosystem (Rust, Python, TypeScript) and CLI provide multiple access patterns.
 
 The **Samyama Enterprise Edition** adds GPU acceleration via wgpu (Metal, Vulkan, DX12), production-grade observability, point-in-time recovery, and hardened high availability with HTTP/2 Raft transport.
 
@@ -61,7 +61,7 @@ ACID guarantees: Atomicity (WriteBatch), Consistency (schema validation + Raft q
 
 Samyama supports ~90% of **OpenCypher**. Queries are parsed via a PEG parser [8] (`pest` crate with atomic keyword rules for word boundary enforcement) and executed using a hybrid **Volcano-Vectorized** model [9] with batch size 1,024.
 
-The engine implements **28 physical operators** organized across scan, traversal, filter, join, aggregation, sort, write, index, and specialized categories. A cost-based optimizer uses `GraphStatistics` (label counts, edge counts, property selectivity) for index selection, predicate pushdown, and join ordering.
+The engine implements **35 physical operators** organized across scan, traversal, filter, join, aggregation, sort, write, index, and specialized categories. A cost-based optimizer uses `GraphStatistics` (label counts, edge counts, property selectivity) for index selection, predicate pushdown, and join ordering.
 
 **Late Materialization** (ADR-012): Scan operators produce `Value::NodeRef(id)` instead of full node clones. Properties are resolved on-demand via the `ColumnStore` at the final `ProjectOperator`, reducing memory bandwidth by 4–5x. This technique adapts the columnar late materialization strategy described in [2] to a graph context.
 

@@ -20,7 +20,7 @@ Download the paper from our GitHub Releases:
 
 ## Abstract
 
-Modern data architectures are fragmented across graph databases, vector stores, analytics engines, and optimization solvers, resulting in complex ETL pipelines and synchronization overhead. We present **Samyama**, a high-performance graph-vector database written in Rust that unifies these workloads into a single engine. Samyama combines a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor with 30 physical operators, a cost-based query planner with plan enumeration and predicate pushdown, a dedicated CSR-based analytics engine, and native RDF/SPARQL support. The system integrates 22 metaheuristic optimization solvers directly into its query language, implements HNSW vector indexing with Graph RAG capabilities, and introduces "Agentic Enrichment" for autonomous graph expansion via LLMs. A comprehensive SDK ecosystem (Rust, Python, TypeScript) and CLI provide multiple access patterns.
+Modern data architectures are fragmented across graph databases, vector stores, analytics engines, and optimization solvers, resulting in complex ETL pipelines and synchronization overhead. We present **Samyama**, a high-performance graph-vector database written in Rust that unifies these workloads into a single engine. Samyama combines a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor with 35 physical operators, a cost-based query planner with plan enumeration and predicate pushdown, a dedicated CSR-based analytics engine, and native RDF/SPARQL support. The system integrates 22 metaheuristic optimization solvers directly into its query language, implements HNSW vector indexing with Graph RAG capabilities, and introduces "Agentic Enrichment" for autonomous graph expansion via LLMs. A comprehensive SDK ecosystem (Rust, Python, TypeScript) and CLI provide multiple access patterns.
 
 The **Samyama Enterprise Edition** adds GPU acceleration via wgpu (Metal, Vulkan, DX12), production-grade observability, point-in-time recovery, and hardened high availability with HTTP/2 Raft transport.
 
@@ -42,7 +42,7 @@ Motivates the need for a unified graph-vector-optimization engine. Identifies 8 
 Covers four subsystems:
 - **Storage Engine**: RocksDB with LSM-tree, LZ4/Zstd compression, Column Families for multi-tenant isolation. `NodeId`/`EdgeId` as direct `u64` arena indices for O(1) access.
 - **Memory Management & MVCC**: Versioned-arena (`Vec<Vec<T>>`) for Snapshot Isolation without read locks. ACID guarantees via WriteBatch + WAL + Raft quorum.
-- **Query & Execution Engine**: ~90% OpenCypher via PEG parser (pest). Hybrid Volcano-Vectorized model with 28 physical operators and batch size 1,024. Cost-based optimizer using `GraphStatistics`. Late materialization via `Value::NodeRef(id)`.
+- **Query & Execution Engine**: ~90% OpenCypher via PEG parser (pest). Hybrid Volcano-Vectorized model with 35 physical operators and batch size 1,024. Cost-based optimizer using `GraphStatistics`. Late materialization via `Value::NodeRef(id)`.
 - **RDF & SPARQL**: Native RDF via `oxrdf` with SPO/POS/OSP triple indices, Turtle/N-Triples/RDF-XML serialization, and `spargebra` SPARQL parser.
 
 ### 3. High-Performance Analytics
