@@ -55,10 +55,14 @@
 \title{Samyama: A Unified Graph-Vector Database with In-Database Optimization,\\Agentic Enrichment, and Hardware Acceleration}
 
 \author{
-  Madhulatha Mandarapu\textsuperscript{1}\thanks{madhulatha@samyama.ai, ORCID: \url{https://orcid.org/0009-0005-2837-6725}} \and
-  Sandeep Kunkunuru\textsuperscript{1}\thanks{sandeep@samyama.ai, ORCID: \url{https://orcid.org/0000-0002-8886-1846}}
+  Madhulatha Mandarapu\thanks{madhulatha@samyama.ai, ORCID: \url{https://orcid.org/0009-0005-2837-6725}} \and
+  Sandeep Kunkunuru\thanks{sandeep@samyama.ai, ORCID: \url{https://orcid.org/0000-0002-8886-1846}}
 }
-\date{March 2026 \quad|\quad v0.6.0}
+\date{%
+  VaidhyaMegha Private Limited, India\\[2pt]
+  \url{https://samyama.ai/}\\[8pt]
+  March 2026 \quad|\quad v0.6.0
+}
 
 \begin{document}
 \maketitle
@@ -67,7 +71,7 @@
 % ABSTRACT
 % ============================================================
 \begin{abstract}
-Modern data architectures are fragmented across graph databases, vector stores, analytics engines, and optimization solvers, resulting in complex ETL pipelines and synchronization overhead. We present \textbf{Samyama}, a high-performance graph-vector database written in Rust that unifies these workloads into a single engine. Samyama combines a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor with 35 physical operators, a cost-based query planner with plan enumeration and predicate pushdown, a dedicated CSR-based analytics engine, and native RDF/SPARQL support. The system integrates 22 metaheuristic optimization solvers directly into its query language, implements HNSW vector indexing~\citep{malkov2020hnsw} with Graph RAG capabilities, and introduces ``Agentic Enrichment'' for autonomous graph expansion via LLMs. The \textbf{Enterprise Edition} adds GPU acceleration via wgpu, production-grade observability, point-in-time recovery, and hardened high availability with HTTP/2 Raft transport.
+Modern data architectures are fragmented across graph databases, vector stores, analytics engines, and optimization solvers, resulting in complex ETL pipelines and synchronization overhead. We present Samyama, a high-performance graph-vector database written in Rust that unifies these workloads into a single engine. Samyama combines a RocksDB-backed persistent store with a versioned-arena MVCC model, a vectorized query executor with 35 physical operators, a cost-based query planner with plan enumeration and predicate pushdown, a dedicated CSR-based analytics engine, and native RDF/SPARQL support. The system integrates 22 metaheuristic optimization solvers directly into its query language, implements HNSW vector indexing with Graph RAG capabilities, and introduces Agentic Enrichment for autonomous graph expansion via LLMs. The Enterprise Edition adds GPU acceleration via wgpu, production-grade observability, point-in-time recovery, and hardened high availability with HTTP/2 Raft transport.
 
 Our evaluation on commodity hardware (Mac Mini M4, 16\,GB RAM) demonstrates: ingestion at 255K nodes/s (CPU) and 412K nodes/s (GPU-accelerated); 115K Cypher queries/sec at 1M nodes; 4.0--4.7$\times$ latency reduction from late materialization on multi-hop traversals; 8.2$\times$ GPU PageRank speedup at 1M nodes; and 100\% LDBC Graphalytics validation (28/28 tests). These results demonstrate that a unified graph-vector-optimization engine can achieve competitive performance on commodity hardware while maintaining Rust's memory safety guarantees.
 \end{abstract}
@@ -304,7 +308,7 @@ Samyama provides a multi-language SDK ecosystem (Table~\ref{tab:sdks}).
 
 The Rust SDK's \texttt{SamyamaClient} trait provides \texttt{EmbeddedClient} (in-process, zero overhead) and \texttt{RemoteClient} (HTTP). Extension traits \texttt{AlgorithmClient} and \texttt{VectorClient} offer direct API access to algorithms and vector operations without Cypher.
 
-The Python SDK (v0.6.0) exposes direct algorithm methods (\texttt{page\_rank}, \texttt{wcc}, \texttt{scc}, \texttt{bfs}, \texttt{dijkstra}, \texttt{pca}, \texttt{triangle\_count}) in embedded mode, enabling data scientists to run graph algorithms directly from Python without writing Cypher.
+The Python SDK (v0.6.0) exposes direct algorithm methods (\texttt{page\_rank}, \texttt{wcc}, \texttt{scc}, \texttt{bfs}, \texttt{dijkstra}, \texttt{pca}, \texttt{triangle\_count}) in embedded mode, enabling data scientists to run graph algorithms directly from Python without writing Cypher. API documentation and interactive examples are available at \url{https://samyama.dev/}.
 
 % ============================================================
 % 7. ENTERPRISE EDITION
@@ -550,6 +554,8 @@ We have presented Samyama, a unified graph-vector database that integrates prope
 Our evaluation on commodity hardware demonstrates competitive ingestion throughput (255K nodes/s), high OLTP query rates (115K QPS), and 100\% LDBC Graphalytics validation. The comparative evaluation reveals that Samyama's parse/plan overhead currently limits single-query latency relative to systems with pre-compiled queries or more mature optimizers; this represents the primary area for future improvement.
 
 \paragraph{Future work.} Key directions include: completing SPARQL query execution over the RDF triple store; scaling benchmarks to LDBC SF10+ and multi-node Raft clusters; histogram-based cardinality estimation for the cost model; a quantitative evaluation of agentic enrichment precision/recall; and convergence analysis of the in-database optimization solvers against established mathematical programming tools.
+
+\paragraph{Availability.} Samyama's open-source edition is available at \url{https://github.com/samyama-ai/samyama-graph}. Product information and the Enterprise Edition are at \url{https://samyama.ai/}. Developer documentation, API references, and interactive examples are at \url{https://samyama.dev/}.
 
 % ============================================================
 % REFERENCES
