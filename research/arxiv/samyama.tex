@@ -192,7 +192,7 @@ The \texttt{samyama-graph-algorithms} crate provides 14 algorithms across five c
   \centering
   \caption{Graph algorithm library.}
   \label{tab:algorithms}
-  \begin{tabular}{@{}ll@{}}
+  \begin{tabular}{@{}lp{10cm}@{}}
     \toprule
     \textbf{Category} & \textbf{Algorithms} \\
     \midrule
@@ -215,6 +215,7 @@ PCA implements the Halko--Martinsson--Tropp algorithm~\citep{halko2011randomized
 
 Unique to Samyama is the integration of \textbf{22 metaheuristic optimization solvers} in the \texttt{samyama-optimization} crate, accessible directly through Cypher procedures:
 
+\begin{minipage}{\linewidth}
 \begin{lstlisting}
 CALL algo.or.solve({
   algorithm: 'NSGA2',
@@ -224,6 +225,7 @@ CALL algo.or.solve({
   population_size: 100
 }) YIELD pareto_front
 \end{lstlisting}
+\end{minipage}
 
 Solvers include: Jaya~\citep{rao2016jaya}, QOJAYA, Rao (1--3)~\citep{rao2020rao}, TLBO~\citep{rao2011tlbo}, ITLBO, GOTLBO, PSO~\citep{kennedy1995pso}, DE~\citep{storn1997de}, GA~\citep{holland1975ga}, GWO~\citep{mirjalili2014gwo}, ABC~\citep{karaboga2005abc}, BAT~\citep{yang2010bat}, Cuckoo Search~\citep{yang2009cuckoo}, Firefly~\citep{yang2009firefly}, FPA~\citep{yang2012fpa}, GSA~\citep{rashedi2009gsa}, SA~\citep{kirkpatrick1983sa}, HS~\citep{geem2001hs}, BMR, BWR, NSGA-II~\citep{deb2002nsga2}, and MOTLBO. Multi-objective solvers implement the \textbf{Constrained Dominance Principle} for feasibility-first Pareto optimization. All solvers leverage Rayon for parallel fitness evaluation across CPU cores.
 
@@ -234,7 +236,7 @@ A key advantage of in-database optimization is the elimination of ETL overhead. 
 
 Figure~\ref{fig:pareto} shows a representative Pareto front from NSGA-II applied to a supply chain scenario with two objectives (cost vs.\ emissions) and capacity constraints, demonstrating that the in-database solver produces well-distributed non-dominated solutions without external tooling.
 
-\begin{figure}[t]
+\begin{figure}[H]
   \centering
   \includegraphics[width=0.8\linewidth]{figures/pareto_front.pdf}
   \caption{NSGA-II Pareto front for a supply chain optimization scenario (cost vs.\ emissions). Solutions are produced entirely in-database without external solver tooling.}
