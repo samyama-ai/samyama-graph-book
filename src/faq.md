@@ -1065,6 +1065,33 @@ Execute (iterate)  <1ms       2%  ← actual graph work is sub-millisecond!
 
 As of v0.6.0, a **plan cache** memoizes compiled execution plans for repeated queries, eliminating the parsing and planning overhead on warm queries. Parameterized queries (`$param`) further improve cache hit rates by separating query structure from literal values.
 
+### Where do the Neo4j and Memgraph comparison numbers come from?
+
+Table 10 in the [arxiv paper (2603.08036)](https://arxiv.org/abs/2603.08036) compares Samyama against Neo4j 5.x and Memgraph 2.x. Here are the sources for each competitor number:
+
+**1-Hop Query Latency** — Memgraph ~1.1 ms, Neo4j ~28 ms:
+From Memgraph's official benchmark (Expansion 1 query: Memgraph 1.09 ms, Neo4j 27.96 ms).
+- Source: [Memgraph vs. Neo4j: A Performance Comparison](https://memgraph.com/blog/memgraph-vs-neo4j-performance-benchmark-comparison)
+
+**Node Ingestion** — Neo4j ~26K/s, Memgraph ~295K/s:
+From Memgraph's write speed analysis — Neo4j took 3.8s to create 100K nodes (~26K/s); Memgraph took ~400ms for 100K nodes (~250K/s).
+- Source: [Memgraph or Neo4j: Analyzing Write Speed Performance](https://memgraph.com/blog/memgraph-or-neo4j-analyzing-write-speed-performance)
+
+**Memory (1M nodes)** — Neo4j ~1,200 MB, Memgraph ~600 MB:
+Neo4j's JVM heap sizing recommendations (heap + page cache overhead for graph workloads); Memgraph's C++ in-memory architecture characteristics.
+- Source: [Neo4j Memory Configuration](https://neo4j.com/docs/operations-manual/current/performance/memory-configuration/)
+- Source: [Memgraph vs Neo4j in 2025](https://medium.com/decoded-by-datacast/memgraph-vs-neo4j-in-2025-real-time-speed-or-battle-tested-ecosystem-66b4c34b117d)
+
+**GC Pauses** — Neo4j 10-100 ms, Samyama/Memgraph 0 ms:
+Neo4j's GC tuning documentation describes old-generation garbage collection pauses; Samyama (Rust) and Memgraph (C++) have no garbage collector.
+- Source: [Neo4j GC Tuning](https://neo4j.com/docs/operations-manual/current/performance/gc-tuning/)
+
+**Additional resources:**
+- [Memgraph BenchGraph](https://memgraph.com/benchgraph) — interactive benchmark comparison tool
+- [Memgraph White Paper: Performance Benchmark](https://memgraph.com/white-paper/performance-benchmark-graph-databases)
+
+> **Note:** The memory numbers (~1,200 MB for Neo4j, ~600 MB for Memgraph at 1M nodes) are estimates based on architecture characteristics rather than a single published benchmark at exactly 1M nodes. The ingestion and latency numbers come from Memgraph's published benchmarks, which were conducted on their hardware and configuration. Samyama numbers are measured on Mac Mini M4 (16 GB RAM). As stated in the paper: *"Direct comparison is approximate due to different hardware, datasets, and query optimization levels."*
+
 ---
 
 ## Architecture Deep Dive
