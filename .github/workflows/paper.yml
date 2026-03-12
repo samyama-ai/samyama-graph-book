@@ -48,12 +48,18 @@ jobs:
             rsvg-convert -f pdf -o "arxiv/figures/$(basename "$f" .svg).pdf" "$f"
           done
 
-      - name: Build arxiv LaTeX
+      - name: Build Paper 1 arxiv LaTeX
         run: |
           cd research/arxiv
           tectonic samyama.tex
 
-      - name: Upload arxiv artifact
+      - name: Build Paper 3 arxiv LaTeX
+        run: |
+          cd research/arxiv
+          tectonic paper3_industrial_kg.tex
+          # bibtex is handled by tectonic automatically
+
+      - name: Upload Paper 1 arxiv artifact
         uses: actions/upload-artifact@v4
         with:
           name: samyama-arxiv
@@ -63,13 +69,26 @@ jobs:
             research/arxiv/samyama.pdf
             research/arxiv/figures/
 
-      - name: Create arxiv tarball and copy PDF for release
+      - name: Upload Paper 3 arxiv artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper3-industrial-kg-arxiv
+          path: |
+            research/arxiv/paper3_industrial_kg.tex
+            research/arxiv/paper3_industrial_kg.bib
+            research/arxiv/paper3_industrial_kg.pdf
+
+      - name: Create arxiv tarballs and copy PDFs for release
         run: |
           cd research/arxiv
+          # Paper 1 tarball
           tar czf ../../samyama-arxiv.tar.gz samyama.tex samyama.bib figures/
           cp samyama.pdf ../../samyama_arxiv.pdf
+          # Paper 3 tarball
+          tar czf ../../paper3-industrial-kg-arxiv.tar.gz paper3_industrial_kg.tex paper3_industrial_kg.bib
+          cp paper3_industrial_kg.pdf ../../paper3_industrial_kg.pdf
 
-      - name: Release PDFs and tarball
+      - name: Release PDFs and tarballs
         uses: softprops/action-gh-release@v1
         if: github.ref == 'refs/heads/main'
         with:
@@ -77,11 +96,19 @@ jobs:
             samyama_paper.pdf
             samyama_arxiv.pdf
             samyama-arxiv.tar.gz
+            paper3_industrial_kg.pdf
+            paper3-industrial-kg-arxiv.tar.gz
           tag_name: latest
           body: |
-            Latest version of the Samyama research paper.
+            Latest versions of the Samyama research papers.
+
+            **Paper 1 — Samyama: Unified Graph-Vector Database**
             - **samyama_paper.pdf** — Pandoc-generated PDF from Markdown
-            - **samyama_arxiv.pdf** — arxiv-ready LaTeX PDF (v0.6.0, with reviewer feedback)
+            - **samyama_arxiv.pdf** — arxiv-ready LaTeX PDF (v0.6.0)
             - **samyama-arxiv.tar.gz** — arxiv upload bundle (tex + bib + figures)
+
+            **Paper 3 — Knowledge Graphs for Industrial Asset Operations**
+            - **paper3_industrial_kg.pdf** — arxiv-ready LaTeX PDF
+            - **paper3-industrial-kg-arxiv.tar.gz** — arxiv upload bundle (tex + bib)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

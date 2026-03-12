@@ -14,7 +14,8 @@ March 2026 | [GitHub (assetops-kg)](https://github.com/samyama-ai/assetops-kg) |
 
 ## Download PDF
 
-- [Paper PDF](https://github.com/samyama-ai/samyama-graph-book/releases/latest/download/paper3_industrial_kg.pdf) — arxiv-ready LaTeX version
+- [Paper PDF](https://github.com/samyama-ai/samyama-graph-book/releases/latest/download/paper3_industrial_kg.pdf) — arxiv-ready LaTeX version (12 pages)
+- [arxiv Upload Bundle](https://github.com/samyama-ai/samyama-graph-book/releases/latest/download/paper3-industrial-kg-arxiv.tar.gz) — tex + bib for arxiv submission
 
 ---
 
