@@ -72,13 +72,13 @@
 % ABSTRACT
 % ============================================================
 \begin{abstract}
-LLM-based agents for industrial asset operations show promise but achieve limited accuracy when reasoning over flat document stores. IBM's AssetOpsBench benchmark reports that GPT-4 agents achieve only 65\% success on 139 industrial maintenance scenarios when backed by CouchDB, YAML, and CSV data sources. We investigate whether the bottleneck is the LLM or the data model.
+LLM-based agents for industrial asset operations show promise but achieve limited accuracy when reasoning over flat document stores. The AssetOpsBench benchmark~\citep{ibm2024assetopsbench} establishes that GPT-4 agents achieve 65\% success on 139 industrial maintenance scenarios backed by CouchDB, YAML, and CSV data sources. AssetOpsBench evaluates LLM agent autonomy; we ask a complementary question: \emph{how much does the data model behind the tools affect agent performance?}
 
-We replace IBM's flat document stores with a knowledge graph (781 nodes, 955 edges, 16 relationship types) built on the Samyama graph database, and evaluate three architectures of increasing LLM involvement: (1) deterministic graph handlers with no LLM, achieving 99\% (137/139); (2) LLM-generated Cypher queries against the graph, achieving 83\% (115/139); and (3) IBM's original LLM-over-flat-documents approach at 65\% (91/139).
+Building on the same benchmark data and scenarios, we introduce a knowledge graph layer (781 nodes, 955 edges, 16 relationship types) and evaluate three architectures of increasing LLM involvement: (1) deterministic graph handlers with no LLM, achieving 99\% (137/139); (2) LLM-generated Cypher queries against the graph, achieving 83\% (115/139); and (3) the original tool-augmented LLM baseline at 65\% (91/139).
 
 Our key finding is \textbf{inverted LLM usage}: instead of asking the LLM to reason over raw data (a broad, error-prone task), we ask it to generate structured queries from a typed schema---a narrow problem that plays to LLM strengths. The graph then executes deterministically. We additionally contribute 40 new graph-native evaluation scenarios covering multi-hop dependency analysis, vector similarity search, and PageRank-based criticality ranking, on which the knowledge graph scores 100\% versus GPT-4o's 85\%.
 
-These results suggest that for structured operational domains, the data model---not the LLM---is the primary bottleneck, and that knowledge graphs can serve as a missing integration layer between raw industrial data and LLM-based reasoning.
+These results suggest that for structured operational domains, the data model---not the LLM---is the primary bottleneck, and that knowledge graphs can serve as an integration layer between raw industrial data and LLM-based reasoning.
 \end{abstract}
 
 \noindent\textbf{Keywords:} Knowledge Graphs, Large Language Models, Industrial Asset Operations, Benchmark, OpenCypher, Vector Search, Graph Algorithms.
@@ -90,18 +90,18 @@ These results suggest that for structured operational domains, the data model---
 
 Industrial asset management generates vast quantities of structured data: sensor telemetry, work orders, failure mode analyses, equipment hierarchies, and maintenance schedules. The rise of Large Language Models (LLMs)~\citep{openai2024gpt4} has prompted efforts to build autonomous agents that can reason over this data---answering operational questions, predicting failures, and recommending maintenance actions.
 
-IBM's AssetOpsBench~\citep{ibm2024assetopsbench} provides the first systematic evaluation of such agents, benchmarking GPT-4 across 139 industrial maintenance scenarios spanning five agent types: IoT telemetry, failure mode and symptom reasoning (FMSR), work order management, time-series foundation model queries, and multi-agent coordination. Their architecture follows the now-standard tool-augmented LLM pattern~\citep{schick2023toolformer,yao2023react}: the LLM parses user intent, selects the appropriate tool, formulates arguments, retrieves data from flat document stores (CouchDB~\citep{anderson2010couchdb}, YAML, CSV), and synthesizes an answer. The LLM does \emph{everything}---and achieves 65\%.
+AssetOpsBench~\citep{ibm2024assetopsbench} provides the first systematic evaluation of such agents, benchmarking GPT-4 across 139 industrial maintenance scenarios spanning five agent types: IoT telemetry, failure mode and symptom reasoning (FMSR), work order management, time-series foundation model queries, and multi-agent coordination. The benchmark architecture follows the now-standard tool-augmented LLM pattern~\citep{schick2023toolformer,yao2023react}: the LLM parses user intent, selects the appropriate tool, formulates arguments, retrieves data from document stores (CouchDB~\citep{anderson2010couchdb}, YAML, CSV), and synthesizes an answer. GPT-4 achieves 65\% on this benchmark.
 
-We observe that many of the LLM's failures are not failures of reasoning but failures of \emph{data access}: hallucinated equipment identifiers, miscounted events across documents, inability to traverse equipment dependencies, and fabricated sensor readings. These are symptoms of asking an LLM to perform \emph{data operations}---counting, joining, traversing---that structured query engines handle deterministically.
+AssetOpsBench was designed to evaluate LLM agent autonomy---a valuable research question. We ask a \emph{complementary} question: how much does the data model behind the tools affect agent performance? Examining the benchmark's failure cases, we observe that many are not failures of reasoning but failures of \emph{data access}: hallucinated equipment identifiers, miscounted events across documents, inability to traverse equipment dependencies, and fabricated sensor readings. These are symptoms of asking an LLM to perform \emph{data operations}---counting, joining, traversing---that structured query engines handle deterministically.
 
-This observation motivates our central hypothesis: \textbf{the bottleneck in LLM-based industrial operations is the data model, not the LLM.} Replacing flat document stores with a knowledge graph~\citep{hogan2021knowledge} should improve accuracy at every level of LLM involvement.
+This observation motivates our central hypothesis: \textbf{for structured operational domains, the data model is the primary bottleneck.} Introducing a knowledge graph~\citep{hogan2021knowledge} as the data layer should improve accuracy at every level of LLM involvement.
 
 \paragraph{Contributions.}
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Three-tier evaluation} of the same 139 scenarios under three architectures: deterministic graph handlers (99\%), LLM-generated Cypher over the graph (83\%), and IBM's LLM-over-flat-documents baseline (65\%). This isolates the data model as the key variable (\S\ref{sec:evaluation}).
+  \item \textbf{Three-tier evaluation} of the same 139 AssetOpsBench scenarios under three architectures: deterministic graph handlers (99\%), LLM-generated Cypher over the graph (83\%), and the original tool-augmented LLM baseline (65\%). This isolates the data model as the key variable (\S\ref{sec:evaluation}).
   \item \textbf{Inverted LLM usage pattern}: we show that constraining the LLM to query generation from a typed schema---rather than free-form data reasoning---yields an 18 percentage point improvement over reasoning over raw documents (\S\ref{sec:inverted-llm}).
-  \item \textbf{Knowledge graph construction}: a complete ETL pipeline transforming IBM's flat data sources into an 11-label, 16-edge-type graph with 384-dimensional failure mode embeddings and equipment dependency topology (\S\ref{sec:kg-construction}).
-  \item \textbf{40 new graph-native scenarios} covering multi-hop dependency analysis, vector similarity search, PageRank criticality, cascade analysis, maintenance optimization, and temporal patterns---capabilities structurally impossible with flat document stores (\S\ref{sec:new-scenarios}).
+  \item \textbf{Knowledge graph construction}: a complete ETL pipeline transforming the AssetOpsBench data sources into an 11-label, 16-edge-type graph with 384-dimensional failure mode embeddings and equipment dependency topology (\S\ref{sec:kg-construction}).
+  \item \textbf{40 new graph-native scenarios} extending the benchmark with multi-hop dependency analysis, vector similarity search, PageRank criticality, cascade analysis, maintenance optimization, and temporal patterns---capabilities structurally impossible with flat document stores (\S\ref{sec:new-scenarios}).
   \item \textbf{Scalability analysis} comparing operational cost, latency, and capability at scale across the three architectures (\S\ref{sec:scalability}).
 \end{enumerate}
 
@@ -111,7 +111,7 @@ This observation motivates our central hypothesis: \textbf{the bottleneck in LLM
 \section{Background: AssetOpsBench}
 \label{sec:background}
 
-AssetOpsBench~\citep{ibm2024assetopsbench} benchmarks \emph{LLM agents}, not data systems. The evaluation measures whether an LLM can autonomously navigate a set of tools to answer industrial maintenance questions. The benchmark comprises 139 scenarios across five agent types (Table~\ref{tab:ibm-scenarios}).
+AssetOpsBench~\citep{ibm2024assetopsbench} is a benchmark for evaluating LLM agent autonomy on industrial maintenance tasks. The evaluation measures whether an LLM can autonomously navigate a set of tools to answer operational questions. The benchmark comprises 139 scenarios across five agent types (Table~\ref{tab:ibm-scenarios}).
 
 \begin{table}[t]
   \centering
@@ -132,9 +132,9 @@ AssetOpsBench~\citep{ibm2024assetopsbench} benchmarks \emph{LLM agents}, not dat
   \end{tabular}
 \end{table}
 
-IBM's architecture follows a ReAct-style~\citep{yao2023react} loop: the user poses a natural language question; the LLM parses intent, selects which agent to invoke, formulates tool arguments, retrieves raw data from CouchDB/YAML/CSV, interprets the results, and synthesizes an answer. The data sources are flat: JSON documents in CouchDB, YAML configuration files for failure modes, and CSV exports for events and work orders. There is no graph, no vector index, and no relationship schema.
+The benchmark architecture follows a ReAct-style~\citep{yao2023react} loop: the user poses a natural language question; the LLM parses intent, selects which agent to invoke, formulates tool arguments, retrieves data from CouchDB/YAML/CSV, interprets the results, and synthesizes an answer. The data sources are document-oriented: JSON documents in CouchDB, YAML configuration files for failure modes, and CSV exports for events and work orders. This is a natural design choice for the benchmark's purpose of evaluating LLM autonomy---the flat data model places the full reasoning burden on the agent, which is precisely what AssetOpsBench aims to measure.
 
-IBM reports that GPT-4 achieves approximately 65\% (91/139) on these scenarios. The failures cluster around tasks requiring counting across documents, correlating data from multiple sources, and traversing implicit equipment relationships---precisely the operations that LLMs are known to perform poorly.
+GPT-4 achieves approximately 65\% (91/139) on these scenarios. The failures cluster around tasks requiring counting across documents, correlating data from multiple sources, and traversing implicit equipment relationships---operations that are inherently difficult for LLMs to perform over unstructured document collections.
 
 % ============================================================
 % 3. KNOWLEDGE GRAPH CONSTRUCTION
@@ -142,7 +142,7 @@ IBM reports that GPT-4 achieves approximately 65\% (91/139) on these scenarios. 
 \section{Knowledge Graph Construction}
 \label{sec:kg-construction}
 
-We transform IBM's flat data sources into a typed knowledge graph using an 8-step ETL pipeline. The resulting graph contains 781 nodes across 11 labels, connected by 955 edges across 16 relationship types (Table~\ref{tab:schema}).
+We transform the AssetOpsBench data sources into a typed knowledge graph using an 8-step ETL pipeline. The resulting graph contains 781 nodes across 11 labels, connected by 955 edges across 16 relationship types (Table~\ref{tab:schema}).
 
 \begin{table}[t]
   \centering
@@ -159,7 +159,7 @@ We transform IBM's flat data sources into a typed knowledge graph using an 8-ste
 
 \subsection{Data Sources and ETL}
 
-The ETL pipeline processes four IBM data sources into graph structure:
+The ETL pipeline processes four AssetOpsBench data sources into graph structure:
 
 \begin{enumerate}[leftmargin=*]
   \item \textbf{EAMLite} (Enterprise Asset Management): Provides the equipment hierarchy. We create 1 Site, 4 Locations (Mechanical, Electrical, HVAC, Utility), and 11 Equipment nodes (chillers with CWC04xxx identifiers), linked by \textsc{contains\_location} and \textsc{contains\_equipment} edges. Equipment nodes carry ISA-95~\citep{isa95} level classification and ISO~14224~\citep{iso14224} asset class properties.
@@ -173,7 +173,7 @@ The ETL pipeline processes four IBM data sources into graph structure:
 
 \subsection{Dependency Topology}
 
-Beyond the data directly present in IBM's sources, we add an equipment dependency layer: \textsc{depends\_on} edges model thermal/electrical dependencies (e.g., AHU depends on Chiller for cooling), and \textsc{shares\_system\_with} edges model shared infrastructure (e.g., chillers on the same cooling loop). This topology enables cascade analysis and criticality ranking---capabilities absent from the flat data model.
+Beyond the data directly present in the benchmark sources, we add an equipment dependency layer: \textsc{depends\_on} edges model thermal/electrical dependencies (e.g., AHU depends on Chiller for cooling), and \textsc{shares\_system\_with} edges model shared infrastructure (e.g., chillers on the same cooling loop). This topology enables cascade analysis and criticality ranking---capabilities absent from the flat data model.
 
 \subsection{Implementation}
 
@@ -187,13 +187,13 @@ The knowledge graph is built using Samyama, an embedded graph database with Open
 
 We evaluate three architectures that vary in LLM involvement, holding the underlying data constant.
 
-\subsection{Architecture A: LLM Does Everything (IBM Baseline)}
+\subsection{Architecture A: Tool-Augmented LLM (AssetOpsBench Baseline)}
 
 \begin{quote}
-Question $\to$ LLM parses intent $\to$ LLM selects tool $\to$ LLM formulates arguments $\to$ Tool queries flat store $\to$ LLM interprets raw results $\to$ LLM synthesizes answer
+Question $\to$ LLM parses intent $\to$ LLM selects tool $\to$ LLM formulates arguments $\to$ Tool queries document store $\to$ LLM interprets raw results $\to$ LLM synthesizes answer
 \end{quote}
 
-The LLM handles five distinct subtasks: intent parsing, tool selection, argument crafting, data interpretation, and answer synthesis. The data sources are flat document stores with no typed schema or relationship structure. This is the architecture IBM benchmarks; GPT-4 achieves 65\%.
+The LLM handles five distinct subtasks: intent parsing, tool selection, argument crafting, data interpretation, and answer synthesis. The data sources are document stores with no typed schema or relationship structure. This is the baseline architecture established by AssetOpsBench; GPT-4 achieves 65\%.
 
 \subsection{Architecture B: LLM Generates Queries (NLQ + Graph)}
 \label{sec:inverted-llm}
@@ -216,11 +216,11 @@ Pre-coded handlers match question patterns to Cypher queries. No LLM is involved
 
 \subsection{The Inverted LLM Pattern}
 
-The key insight connecting Architectures A and B is what we term \textbf{inverted LLM usage}. Both use an LLM, but they ask fundamentally different questions:
+The key insight connecting Architectures A and B is what we term \textbf{inverted LLM usage}. Both use an LLM, but they pose fundamentally different problems:
 
 \begin{itemize}[leftmargin=*]
-  \item \textbf{IBM} asks: ``LLM, answer this question from this data.'' The LLM must count across documents, correlate fields from different sources, and traverse implicit relationships---tasks where LLMs consistently fail.
-  \item \textbf{NLQ} asks: ``LLM, given this schema, write me a Cypher query.'' The LLM performs code generation from a structured specification---a task where LLMs consistently excel.
+  \item \textbf{Architecture A} asks: ``LLM, answer this question from this data.'' The LLM must count across documents, correlate fields from different sources, and traverse implicit relationships---tasks where LLMs consistently struggle.
+  \item \textbf{Architecture B} asks: ``LLM, given this schema, write me a Cypher query.'' The LLM performs code generation from a structured specification---a task where LLMs consistently excel.
 \end{itemize}
 
 The same LLM, given a sharper problem scoped to its strengths, produces dramatically better results. This pattern generalizes beyond industrial operations: \textbf{schema-aware query generation outperforms free-form data reasoning} for any structured domain.
@@ -231,26 +231,26 @@ The same LLM, given a sharper problem scoped to its strengths, produces dramatic
 \section{Evaluation}
 \label{sec:evaluation}
 
-\subsection{IBM's 139 Scenarios: Three-Tier Results}
+\subsection{AssetOpsBench 139 Scenarios: Three-Tier Results}
 
-Table~\ref{tab:main-results} presents the primary comparison across all three architectures on IBM's original 139 scenarios.
+Table~\ref{tab:main-results} presents the primary comparison across all three architectures on the original 139 AssetOpsBench scenarios.
 
 \begin{table}[t]
   \centering
-  \caption{Three-tier performance on IBM's 139 AssetOpsBench scenarios.}
+  \caption{Three-tier performance on the 139 AssetOpsBench scenarios.}
   \label{tab:main-results}
   \begin{tabular}{@{}lllrr@{}}
     \toprule
     \textbf{Architecture} & \textbf{LLM Role} & \textbf{Data Layer} & \textbf{Pass Rate} & \textbf{Avg Latency} \\
     \midrule
-    A: IBM baseline     & Does everything     & Flat (CouchDB/YAML/CSV) & 91/139 (65\%)  & not reported \\
-    B: NLQ + graph      & Generates Cypher    & Knowledge graph         & 115/139 (83\%) & 5{,}874\,ms \\
-    C: Deterministic    & None                & Knowledge graph         & \textbf{137/139 (99\%)} & \textbf{63\,ms} \\
+    A: Baseline          & Does everything     & Document stores (CouchDB/YAML/CSV) & 91/139 (65\%)  & not reported \\
+    B: NLQ + graph       & Generates Cypher    & Knowledge graph         & 115/139 (83\%) & 5{,}874\,ms \\
+    C: Deterministic     & None                & Knowledge graph         & \textbf{137/139 (99\%)} & \textbf{63\,ms} \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\paragraph{Model caveat.} IBM used GPT-4; our NLQ benchmark used GPT-4o (a more capable model released later). The +18 percentage point gap between NLQ (83\%) and IBM (65\%) is therefore an \emph{upper bound} on the graph's contribution---part of the improvement may stem from the stronger LLM. A GPT-4 NLQ run is in progress to isolate the graph's effect.
+\paragraph{Model caveat.} The baseline used GPT-4; our NLQ benchmark used GPT-4o (a more capable model released later). The +18 percentage point gap between NLQ (83\%) and the baseline (65\%) is therefore an \emph{upper bound} on the graph's contribution---part of the improvement may stem from the stronger LLM. A GPT-4 NLQ run is in progress to isolate the graph's effect.
 
 \subsection{Per-Type Breakdown}
 
@@ -277,7 +277,7 @@ Table~\ref{tab:per-type} shows performance by scenario type for both the determi
 
 \paragraph{NLQ failure analysis.} Multi-agent scenarios remain at 40\% for NLQ because 12 of 20 require TSFM pipeline execution (time-series forecasting, anomaly detection) that cannot be expressed as Cypher queries. This is a structural limitation: these scenarios require running ML inference, not querying stored data. The deterministic architecture handles them by routing to domain-knowledge handlers.
 
-\paragraph{Deterministic failures.} Only 2 of 139 scenarios fail: both are work order bundling edge cases (IDs 411, 424) where IBM's expected answer groups work orders into specific bundle sizes. Our date-window clustering produces different groupings. These are response-format mismatches, not knowledge gaps.
+\paragraph{Deterministic failures.} Only 2 of 139 scenarios fail: both are work order bundling edge cases (IDs 411, 424) where the benchmark's expected answer groups work orders into specific bundle sizes. Our date-window clustering produces different groupings. These are response-format mismatches, not knowledge gaps.
 
 \subsection{NLQ Progression}
 
@@ -303,7 +303,7 @@ A striking example: in v1, FMSR scenarios scored 30\% because the schema introsp
 \subsection{Custom 40 Scenarios: Graph-Native Capabilities}
 \label{sec:new-scenarios}
 
-We designed 40 additional scenarios that test capabilities beyond IBM's scope---queries that require graph structure, vector search, or graph algorithms and are structurally impossible with flat document stores (Table~\ref{tab:custom-categories}).
+We designed 40 additional scenarios that extend the benchmark's scope to queries requiring graph structure, vector search, or graph algorithms---capabilities structurally impossible with flat document stores (Table~\ref{tab:custom-categories}).
 
 \begin{table}[t]
   \centering
@@ -373,14 +373,14 @@ GPT-4o's 6 failures (scenarios requiring PageRank, BFS traversal, or vector simi
 
 \subsection{The Data Model Is the Bottleneck}
 
-IBM's GPT-4 agents fail not because GPT-4 lacks reasoning ability, but because flat document stores make certain queries structurally hard or impossible:
+The baseline agents do not fail because GPT-4 lacks reasoning ability. Rather, document stores make certain queries structurally hard or impossible for any LLM:
 
 \begin{itemize}[leftmargin=*]
-  \item \textbf{Counting across documents}: ``How many events for CWC04009 in 2019?'' requires the LLM to scan multiple JSON documents, parse dates, and aggregate---error-prone at scale. In the graph: \texttt{MATCH (e:Event) WHERE e.equipment\_id = 'CWC04009' RETURN count(e)} executes deterministically.
+  \item \textbf{Counting across documents}: ``How many events for CWC04009 in 2019?'' requires the LLM to scan multiple JSON documents, parse dates, and aggregate---error-prone at scale. With a graph: \texttt{MATCH (e:Event) WHERE e.equipment\_id = 'CWC04009' RETURN count(e)} executes deterministically.
 
-  \item \textbf{Relationship traversal}: ``Which sensors monitor overheating?'' is one edge hop in the graph: \texttt{(s:Sensor)-[:MONITORS]->(fm:FailureMode)}. In flat stores, the LLM must correlate YAML failure definitions with CouchDB sensor metadata---a cross-source join with no explicit link.
+  \item \textbf{Relationship traversal}: ``Which sensors monitor overheating?'' is one edge hop in the graph: \texttt{(s:Sensor)-[:MONITORS]->(fm:FailureMode)}. With document stores, the LLM must correlate YAML failure definitions with CouchDB sensor metadata---a cross-source join with no explicit link.
 
-  \item \textbf{Impossible operations}: Multi-hop cascade analysis, vector similarity search, PageRank criticality, and Pareto-optimal scheduling have no equivalent on flat document stores regardless of LLM capability.
+  \item \textbf{Structurally impossible operations}: Multi-hop cascade analysis, vector similarity search, PageRank criticality, and Pareto-optimal scheduling have no equivalent on document stores regardless of LLM capability.
 \end{itemize}
 
 \subsection{Why Constraining the LLM Helps}
@@ -398,10 +398,11 @@ The graph absorbs the hard parts (traversal, counting, joining, algorithms), lea
 \label{sec:caveats}
 
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Deterministic vs.\ autonomous}: Architecture C's 99\% result compares a pre-coded solution against an autonomous agent. We wrote the answers; IBM benchmarks whether GPT-4 can figure them out independently. These are fundamentally different tasks.
-  \item \textbf{Model mismatch}: IBM used GPT-4; our NLQ runs used GPT-4o. The +18pp gap is an upper bound on the graph's contribution. A same-model comparison is in progress.
+  \item \textbf{Deterministic vs.\ autonomous}: Architecture C's 99\% result compares a pre-coded solution against an autonomous agent. We wrote the answers; AssetOpsBench measures whether GPT-4 can figure them out independently. These are fundamentally different tasks---the comparison illustrates the ceiling achievable with the right data model, not a claim of superior agent intelligence.
+  \item \textbf{Model mismatch}: The baseline used GPT-4; our NLQ runs used GPT-4o. The +18pp gap is an upper bound on the graph's contribution. A same-model comparison is in progress.
   \item \textbf{Clean data assumption}: AssetOpsBench provides clean, structured data. Real industrial environments involve noisy sensors, scanned PDFs, legacy Excel files, and inconsistent naming---challenges addressed in \S\ref{sec:real-world}.
-  \item \textbf{Custom scenarios}: Our 40 new scenarios are designed to showcase graph-native capabilities. They are complementary to, not replacements for, IBM's benchmark.
+  \item \textbf{Custom scenarios}: Our 40 new scenarios are designed to extend the benchmark with graph-native capabilities. They are complementary to, not replacements for, the original AssetOpsBench scenarios.
+  \item \textbf{Different research questions}: AssetOpsBench evaluates LLM agent autonomy---whether an LLM can independently navigate tools and data. We evaluate data model impact---whether a different data layer improves agent performance. Both are valid research questions; our results do not diminish the value of the original benchmark.
 \end{enumerate}
 
 % ============================================================
@@ -415,7 +416,7 @@ The three-architecture comparison in \S\ref{sec:evaluation} focuses on the \emph
 \subsection{Three Layers of Industrial Data}
 
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Data Ingestion} (software engineering): Raw sensor telemetry, CMMS exports, work order records, and equipment registries are loaded into the database via deterministic ETL pipelines. For structured data (90\%+ of industrial data), this is pure software engineering: \texttt{pandas.read\_csv()} $\to$ Cypher \texttt{CREATE} statements. IBM's pipeline is similarly deterministic---their \texttt{couchdb\_setup.sh} bulk-inserts JSON documents; their EAMLite uses an SQLModel ORM. No LLM is needed for structured ingestion.
+  \item \textbf{Data Ingestion} (software engineering): Raw sensor telemetry, CMMS exports, work order records, and equipment registries are loaded into the database via deterministic ETL pipelines. For structured data (90\%+ of industrial data), this is pure software engineering: \texttt{pandas.read\_csv()} $\to$ Cypher \texttt{CREATE} statements. The AssetOpsBench pipeline is similarly deterministic---\texttt{couchdb\_setup.sh} bulk-inserts JSON documents; EAMLite uses an SQLModel ORM. No LLM is needed for structured ingestion regardless of the target data model.
 
   \item \textbf{Data Model} (architecture decision): The choice between flat documents and a graph is a one-time design decision with compounding returns at the query layer. Both require comparable ETL effort; the graph requires explicit relationship typing but enables traversal, algorithms, and vector indexing.
 
@@ -460,25 +461,25 @@ Table~\ref{tab:scalability} compares the three architectures on operational dime
   \label{tab:scalability}
   \begin{tabular}{@{}lp{3.8cm}p{4.2cm}@{}}
     \toprule
-    \textbf{Dimension} & \textbf{IBM (LLM + flat docs)} & \textbf{Samyama (graph $\pm$ LLM)} \\
+    \textbf{Dimension} & \textbf{Arch.\ A (LLM + docs)} & \textbf{Arch.\ B/C (graph $\pm$ LLM)} \\
     \midrule
     10K queries/day     & \$300--500 (tokens)              & \$0 (deterministic) or $\sim$\$30 (NLQ) \\
     Real-time streaming & Not supported (request-response)  & Graph updates + continuous queries \\
-    Multi-hop at 10K assets & LLM reasons across 10K docs (fails) & BFS traversal, $O(|E|)$ \\
+    Multi-hop at 10K assets & LLM reasons across 10K docs & BFS traversal, $O(|E|)$ \\
     New query patterns  & Prompt engineering                 & Add handler or use NLQ \\
     Latency per query   & 5--11\,s                          & 63\,ms (det.) / $\sim$6\,s (NLQ) \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-The cost asymmetry is particularly relevant for industrial operations: sensor networks may generate thousands of queries per day (anomaly checks, threshold alerts, status polls). At \$0.03--0.05 per LLM query, IBM's architecture costs \$300--500/day for 10K queries. Deterministic graph queries cost nothing after the initial ETL.
+The cost asymmetry is particularly relevant for industrial operations: sensor networks may generate thousands of queries per day (anomaly checks, threshold alerts, status polls). At \$0.03--0.05 per LLM query, a fully LLM-driven architecture costs \$300--500/day for 10K queries. Deterministic graph queries cost nothing after the initial ETL.
 
 % ============================================================
 % 9. RELATED WORK
 % ============================================================
 \section{Related Work}
 
-\paragraph{LLM agents for tool use.} The ReAct framework~\citep{yao2023react} and Toolformer~\citep{schick2023toolformer} established the pattern of LLMs selecting and invoking external tools. AssetOpsBench~\citep{ibm2024assetopsbench} applies this pattern to industrial asset operations via the Model Context Protocol~\citep{mcp2024}. Our work complements this line of research by showing that the data layer behind the tools matters as much as the agent's reasoning capability.
+\paragraph{LLM agents for tool use.} The ReAct framework~\citep{yao2023react} and Toolformer~\citep{schick2023toolformer} established the pattern of LLMs selecting and invoking external tools. AssetOpsBench~\citep{ibm2024assetopsbench} makes an important contribution by applying this pattern to industrial asset operations via the Model Context Protocol~\citep{mcp2024}, providing the first standardized benchmark in this domain. Our work builds on AssetOpsBench by investigating a complementary dimension: the effect of the data layer behind the tools on agent performance.
 
 \paragraph{Knowledge graphs and LLMs.} \citet{pan2024unifying} survey approaches to combining LLMs with knowledge graphs, identifying three paradigms: KG-enhanced LLMs, LLM-enhanced KGs, and synergized architectures. Our inverted LLM pattern aligns with their ``synergized'' category---the KG provides structured data access, the LLM provides natural language understanding, and each system handles what it does best.
 
@@ -491,15 +492,15 @@ The cost asymmetry is particularly relevant for industrial operations: sensor ne
 % ============================================================
 \section{Conclusion}
 
-We have shown that replacing flat document stores with a knowledge graph improves LLM-based industrial operations at every level of LLM involvement: from 65\% (LLM over flat docs) to 83\% (LLM generates queries over graph) to 99\% (deterministic graph handlers). The data model---not the LLM---is the primary bottleneck.
+Building on the AssetOpsBench benchmark, we have shown that introducing a knowledge graph as the data layer improves LLM-based industrial operations at every level of LLM involvement: from 65\% (LLM over document stores) to 83\% (LLM generates queries over graph) to 99\% (deterministic graph handlers). For structured operational domains, the data model is the primary bottleneck.
 
 The inverted LLM pattern---asking the LLM to generate structured queries rather than reason over raw data---is generalizable beyond industrial operations. For any structured domain with a typed schema, \textbf{schema-aware query generation outperforms free-form data reasoning}. LLMs excel at code generation from specifications; graphs excel at data traversal, aggregation, and algorithms. Each system should do what it is good at.
 
-\paragraph{Contributions.} (1) A three-tier evaluation isolating the data model as the key variable on IBM's 139-scenario benchmark. (2) The inverted LLM usage pattern, demonstrating +18pp improvement by constraining the LLM to query generation. (3) A complete ETL pipeline and knowledge graph schema for industrial asset operations. (4) 40 new graph-native scenarios testing multi-hop, vector, and algorithmic capabilities. (5) An honest analysis of limitations including the model mismatch caveat and clean-data assumption.
+\paragraph{Contributions.} (1) A three-tier evaluation isolating the data model as the key variable on the 139-scenario AssetOpsBench benchmark. (2) The inverted LLM usage pattern, demonstrating +18pp improvement by constraining the LLM to query generation. (3) A complete ETL pipeline and knowledge graph schema for industrial asset operations. (4) 40 new graph-native scenarios extending the benchmark with multi-hop, vector, and algorithmic capabilities. (5) An honest analysis of limitations including the model mismatch caveat and clean-data assumption.
 
 \paragraph{Future work.} A same-model (GPT-4) NLQ comparison to isolate the graph's contribution from the model improvement; evaluation on larger industrial environments (10K+ assets, multi-site); integration of LLM-assisted data preparation for unstructured maintenance logs; and a hybrid architecture that uses deterministic handlers for known patterns and NLQ for novel queries.
 
-\paragraph{Availability.} The benchmark code, ETL pipeline, and evaluation framework are available at \url{https://github.com/samyama-ai/assetops-kg}. The Samyama graph database is at \url{https://github.com/samyama-ai/samyama-graph}. The 40 new scenarios have been submitted to IBM's AssetOpsBench repository.
+\paragraph{Availability.} The benchmark code, ETL pipeline, and evaluation framework are available at \url{https://github.com/samyama-ai/assetops-kg}. The Samyama graph database is at \url{https://github.com/samyama-ai/samyama-graph}. The 40 new scenarios have been submitted to the AssetOpsBench repository as a community contribution.
 
 % ============================================================
 % REFERENCES
