@@ -914,6 +914,34 @@ ORDER BY score DESC
 
 This prevents the "filter-out-all-results" problem where a pure vector search returns documents from irrelevant departments. See [AI & Vector Search](./ai_vector_search.md).
 
+### How do I generate embeddings? Why is Mock the default?
+
+Samyama **indexes and searches** vectors but does not bundle an embedding model. The default `Mock` provider generates random vectors — this is deliberate to keep the binary small (~30MB savings), avoid mandatory model downloads, and let you choose the embedding model that fits your domain.
+
+**For real embeddings, choose based on your stack:**
+
+| Stack | Provider | Setup |
+| :--- | :--- | :--- |
+| Python | `sentence-transformers` | `pip install sentence-transformers` — best model selection, easiest path |
+| Rust | `ort` crate (ONNX Runtime) | Export model to ONNX, load with `ort::Session` — fastest, no Python |
+| Any language | OpenAI API | HTTP call to `/v1/embeddings` — simplest, pay-per-use |
+| Any language (local) | Ollama | `ollama pull nomic-embed-text` — free, private, runs anywhere |
+
+**Python example with sentence-transformers:**
+```python
+from samyama import SamyamaClient
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("all-MiniLM-L6-v2")  # 384-dim
+client = SamyamaClient.embedded()
+client.create_vector_index("Document", "embedding", 384, "cosine")
+
+embedding = model.encode("Graph databases unify structure and search").tolist()
+client.add_vector("Document", "embedding", node_id, embedding)
+```
+
+See [AI & Vector Search — Embedding Providers](./ai_vector_search.md#embedding-providers) for complete examples across all providers.
+
 ### What is Agentic Enrichment (GAK)?
 
 **Generation-Augmented Knowledge (GAK)** is the inverse of RAG. Instead of using the database to help an LLM, the database uses an LLM to help build itself.
