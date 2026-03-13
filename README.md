@@ -1,5 +1,8 @@
 # Building Samyama: The Architecture of a Modern Rust Graph Database
 
+![Language](https://img.shields.io/badge/language-Handlebars-blue)
+
+
 This repository contains the source code for the "Book as Code" project describing the internal architecture of **Samyama-Graph**.
 
 It is written using `mdBook`.
