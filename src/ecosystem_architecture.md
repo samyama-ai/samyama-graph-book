@@ -6,33 +6,25 @@ This chapter maps the full Samyama ecosystem: repositories, modules, features, a
 
 ## 1. Repository Map
 
-The Samyama ecosystem spans 7 repositories across 3 hosting platforms.
+The Samyama ecosystem spans 7 repositories.
 
 ```mermaid
 graph LR
-    subgraph GitHub ["GitHub (samyama-ai)"]
+    subgraph Public ["Public (GitHub)"]
         SG["samyama-graph<br/>(OSS engine)"]
         SGB["samyama-graph-book<br/>(documentation)"]
         CKG["cricket-kg"]
         CTKG["clinicaltrials-kg"]
+    end
+
+    subgraph Private ["Private"]
+        SGE["samyama-graph-enterprise"]
+        SC["samyama-cloud<br/>(deploy, backlog, workflow)"]
+        SI["samyama-insight<br/>(React frontend)"]
         AOKG["assetops-kg"]
     end
 
-    subgraph Gitea ["Gitea (git.samyama.ai)"]
-        SGE["samyama-graph-enterprise"]
-        SC["samyama-cloud<br/>(deploy, backlog, workflow)"]
-        SG2["samyama-graph<br/>(mirror)"]
-        CKG2["cricket-kg<br/>(mirror)"]
-        CTKG2["clinicaltrials-kg<br/>(mirror)"]
-        AOKG2["assetops-kg<br/>(mirror)"]
-    end
-
-    subgraph GitHub2 ["GitHub (VaidhyaMegha)"]
-        SI["samyama-insight<br/>(React frontend)"]
-    end
-
     SG -->|"sync via PR"| SGE
-    SG -->|"mirror push"| SG2
     SG -->|"Python SDK"| CKG
     SG -->|"Python SDK"| CTKG
     SG -->|"Python SDK"| AOKG
@@ -50,16 +42,16 @@ graph LR
     style AOKG fill:#b197fc,stroke:#333,color:#fff
 ```
 
-| Repository | Platform | Visibility | Purpose |
-|---|---|---|---|
-| `samyama-graph` | GitHub + Gitea | Public | Rust graph DB engine (OSS) |
-| `samyama-graph-enterprise` | Gitea | Private | Enterprise features (GPU, monitoring, backup, licensing) |
-| `samyama-graph-book` | GitHub | Public | mdBook documentation + research papers |
-| `samyama-insight` | GitHub | Private | React + Vite frontend (schema explorer, query console, visualizer) |
-| `samyama-cloud` | Gitea | Private | Deployment scripts, backlog, workflow, SonarQube configs |
-| `cricket-kg` | GitHub + Gitea | Public | Cricket knowledge graph (Cricsheet data) |
-| `clinicaltrials-kg` | GitHub + Gitea | Public | Clinical trials KG (ClinicalTrials.gov / AACT data) |
-| `assetops-kg` | GitHub + Gitea | Private | Asset operations KG (industrial IoT data) |
+| Repository | Visibility | Purpose |
+|---|---|---|
+| `samyama-graph` | Public | Rust graph DB engine (OSS) |
+| `samyama-graph-enterprise` | Private | Enterprise features (GPU, monitoring, backup, licensing) |
+| `samyama-graph-book` | Public | mdBook documentation + research papers |
+| `samyama-insight` | Private | React + Vite frontend (schema explorer, query console, visualizer) |
+| `samyama-cloud` | Private | Deployment configs, backlog, workflow |
+| `cricket-kg` | Public | Cricket knowledge graph (Cricsheet data) |
+| `clinicaltrials-kg` | Public | Clinical trials KG (ClinicalTrials.gov / AACT data) |
+| `assetops-kg` | Private | Asset operations KG (industrial IoT data) |
 
 ---
 
@@ -541,31 +533,26 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    subgraph "Mac Mini M4 (Production)"
-        SGE_BIN["samyama-graph-enterprise<br/>(release binary)"]
+    subgraph "Samyama Server"
+        SGE_BIN["samyama-graph<br/>(release binary)"]
         ROCKS["RocksDB<br/>(persistent storage)"]
-        LIC["samyama.license<br/>(JET token)"]
         SI_DIST["samyama-insight<br/>(static dist/)"]
     end
 
-    subgraph "Developer Machine"
+    subgraph "Developer Workflow"
         SG_DEV["samyama-graph<br/>(cargo build)"]
         PY_DEV["Python SDK<br/>(maturin develop)"]
         KG_DEV["KG projects<br/>(python -m etl.loader)"]
     end
 
     subgraph "External Services"
-        GH["GitHub<br/>(OSS repos)"]
-        GT["Gitea<br/>(enterprise + mirrors)"]
         LLM["LLM Provider<br/>(OpenAI / Claude / Ollama)"]
     end
 
     SGE_BIN -->|":6379 RESP"| ROCKS
     SGE_BIN -->|":8080 HTTP"| SI_DIST
-    SGE_BIN --> LIC
     SG_DEV -->|"sync via PR"| SGE_BIN
     SG_DEV --> PY_DEV --> KG_DEV
-    SG_DEV -->|"push"| GH
     SGE_BIN -->|"NLQ / GAK"| LLM
 
     style SGE_BIN fill:#ff6b6b,stroke:#333,color:#fff
@@ -616,6 +603,6 @@ graph LR
 | **Frontend** | React + Vite + shadcn/ui | Interactive dashboard (samyama-insight) |
 | **E2E Testing** | Playwright | Browser-based end-to-end tests |
 | **Benchmarks** | Criterion | Rust micro-benchmarks (10 suites) |
-| **CI/CD** | GitHub Actions + Gitea | OSS → enterprise sync |
+| **CI/CD** | GitHub Actions | Automated builds, tests, sync |
 | **Licensing** | Ed25519 (JET tokens) | Cryptographic feature gating |
 | **LLM Integration** | OpenAI, Claude, Gemini, Ollama | NLQ + Agentic enrichment |
