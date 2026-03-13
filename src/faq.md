@@ -75,6 +75,7 @@ Samyama runs on any system with a Rust 1.83+ toolchain:
 | :--- | :--- | :--- |
 | **License** | Apache 2.0 | Commercial (JET token) |
 | **Core Engine** | ✅ Full | ✅ Full |
+| **Multi-Tenancy** | Single namespace (`default`) | Tenant CRUD API, quotas, isolation |
 | **Monitoring** | Logging only | Prometheus, health checks, audit trail |
 | **Backup** | WAL only | Full/incremental backup, PITR |
 | **HA** | Basic Raft | HTTP/2 transport, snapshot streaming |

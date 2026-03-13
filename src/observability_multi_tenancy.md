@@ -2,15 +2,17 @@
 
 A database in production is a living organism. To keep it healthy, we need to see inside it, and to keep it secure, we need to isolate its users.
 
-## Multi-tenancy: Namespace Isolation
+## Multi-tenancy: Namespace Isolation *(Enterprise)*
 
-Samyama is "Multi-tenant by Design." We don't just put everyone's data in one big bucket; we use **Namespace Isolation**.
+Multi-tenancy is an **Enterprise Edition** feature. The Community Edition operates with a single `"default"` namespace — all data lives in one graph, which is simpler and perfectly adequate for single-application deployments.
 
-### Logical Separation with RocksDB
+The Enterprise Edition adds full multi-tenant capabilities: a **Tenant Management HTTP API** (CRUD + usage tracking), **resource quotas**, and **namespace isolation** via RocksDB Column Families.
+
+### Logical Separation with RocksDB *(Enterprise)*
 
 ```mermaid
 graph TD
-    subgraph "Samyama Server"
+    subgraph "Samyama Enterprise Server"
         Router["Tenant Router"]
         Router --> TenantA["Tenant A<br>Quota: 1GB RAM, 10GB Disk"]
         Router --> TenantB["Tenant B<br>Quota: 2GB RAM, 50GB Disk"]
@@ -24,13 +26,14 @@ graph TD
     end
 ```
 
-We leverage RocksDB's **Column Families** (CF) for this. Each tenant is assigned their own CF.
+Enterprise leverages RocksDB's **Column Families** (CF) for isolation. Each tenant is assigned their own CF.
 *   **Isolation**: Tenant A's keyspace is physically and logically distinct from Tenant B's.
 *   **Maintenance**: Compaction (the background cleanup process) happens per-tenant. If Tenant A is doing heavy writes, it won't trigger a slow compaction for Tenant B.
 *   **Backup**: We can snapshot and restore individual tenants without affecting others.
+*   **HTTP API**: `GET/POST/PATCH/DELETE /api/tenants` for tenant lifecycle management; `GET /api/tenants/:id/usage` for resource tracking.
 
-### Resource Quotas
-To prevent the "Noisy Neighbor" problem, Samyama enforces strict resource quotas per tenant:
+### Resource Quotas *(Enterprise)*
+To prevent the "Noisy Neighbor" problem, the Enterprise Edition enforces strict resource quotas per tenant:
 *   **Memory Quota**: Max RAM for the in-memory graph.
 *   **Storage Quota**: Max disk space in RocksDB.
 *   **Query Time**: Max duration for a single Cypher query (to prevent "queries from hell" from locking the CPU).
@@ -64,4 +67,4 @@ Gone are the days of parsing text logs. Samyama emits **JSON logs**.
 ```
 This allows for easy ingestion into ELK (Elasticsearch, Logstash, Kibana) or Loki for powerful log aggregation and searching.
 
-By combining strong tenant isolation with deep observability, Samyama provides an "Enterprise-Ready" experience that allows operators to run massive multi-user clusters with confidence.
+By combining strong tenant isolation (Enterprise) with deep observability, Samyama provides a production-ready experience that allows operators to run massive multi-user clusters with confidence.

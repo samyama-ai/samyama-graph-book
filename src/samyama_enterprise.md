@@ -19,7 +19,7 @@ Moving a database from a developer's laptop to a production cluster involves sol
 | | ACID Transactions (local) | ✅ | ✅ |
 | **Persistence** | RocksDB Storage (LZ4/Zstd compression) | ✅ | ✅ |
 | | Write-Ahead Log (WAL) | ✅ | ✅ |
-| | Multi-Tenancy (namespace isolation, quotas) | ✅ | ✅ |
+| | Multi-Tenancy (tenant CRUD API, quotas, isolation) | ❌ | ✅ |
 | | **Backup & Restore (Full/Incremental)** | ❌ | ✅ |
 | | **Point-in-Time Recovery (PITR)** | ❌ | ✅ |
 | | **Scheduled Backups & Retention Policies** | ❌ | ✅ |
