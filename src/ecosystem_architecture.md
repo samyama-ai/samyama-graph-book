@@ -188,25 +188,7 @@ graph TB
     style SGE fill:#fce4ec,stroke:#c62828
 ```
 
-### Feature Availability Matrix
-
-| Feature | Community (OSS) | Enterprise |
-|---|---|---|
-| OpenCypher query engine | ✅ | ✅ |
-| Persistence (RocksDB + WAL) | ✅ | ✅ |
-| Multi-tenancy | ✅ | ✅ |
-| Vector search (HNSW) | ✅ | ✅ |
-| Graph algorithms (11 algos) | ✅ | ✅ |
-| NLQ (text-to-Cypher) | ✅ | ✅ |
-| Raft consensus (basic) | ✅ | ✅ |
-| Metaheuristic optimization | ✅ | ✅ |
-| MCP server generation | ✅ | ✅ |
-| Prometheus /metrics | ❌ | ✅ |
-| Backup & restore (PITR) | ❌ | ✅ |
-| Audit trail | ❌ | ✅ |
-| ADMIN.* commands | ❌ | ✅ |
-| GPU acceleration (wgpu) | ❌ | ✅ |
-| Enhanced Raft (HTTP transport) | ❌ | ✅ |
+For the full feature-by-feature comparison between Community and Enterprise editions, see the [Enterprise Edition Overview](./samyama_enterprise.md#feature-matrix).
 
 ---
 
