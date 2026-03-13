@@ -34,6 +34,7 @@
 # Part V: In Practice
 - [Performance & Benchmarks](./performance_benchmarks.md)
 - [Real-world Use Cases](./real_world_use_cases.md)
+- [Ecosystem Architecture](./ecosystem_architecture.md)
 - [The Future of Graph DBs](./future_roadmap.md)
 
 # Appendices
