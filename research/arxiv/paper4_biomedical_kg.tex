@@ -1,0 +1,515 @@
+% paper4_biomedical_kg.tex — arxiv submission (cs.DB / q-bio.QM)
+% Open Biomedical Knowledge Graphs at Scale
+\documentclass[11pt]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{natbib}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{url}
+\usepackage{microtype}
+\usepackage{multirow}
+\usepackage{subcaption}
+
+% --- Hyperref setup ---
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!70!black,
+  citecolor=blue!70!black,
+  urlcolor=blue!70!black
+}
+
+% --- Listings setup for Cypher ---
+\lstdefinelanguage{Cypher}{
+  keywords={MATCH, RETURN, WHERE, CREATE, DELETE, SET, REMOVE, MERGE, WITH, UNWIND, UNION, ORDER, BY, SKIP, LIMIT, EXPLAIN, PROFILE, CALL, YIELD, AS, DISTINCT, OPTIONAL, AND, OR, NOT, IN, IS, NULL, TRUE, FALSE, EXISTS, CASE, WHEN, THEN, ELSE, END, DROP, SHOW, INDEX, INDEXES, CONSTRAINTS, ON, CONTAINS},
+  sensitive=false,
+  morestring=[b]',
+  morestring=[b]",
+  morecomment=[l]{//},
+}
+
+\lstset{
+  language=Cypher,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries\color{blue!70!black},
+  stringstyle=\color{red!70!black},
+  commentstyle=\itshape\color{gray},
+  breaklines=true,
+  frame=single,
+  framesep=3pt,
+  xleftmargin=6pt,
+  xrightmargin=6pt,
+  aboveskip=8pt,
+  belowskip=8pt
+}
+
+% --- Title ---
+\title{Open Biomedical Knowledge Graphs at Scale:\\Construction, Federation, and AI Agent Access\\with Samyama Graph Database}
+
+\author{
+  Madhulatha Mandarapu\thanks{madhulatha@samyama.ai, ORCID: \url{https://orcid.org/0009-0005-2837-6725}} \and
+  Sandeep Kunkunuru\thanks{sandeep@samyama.ai, ORCID: \url{https://orcid.org/0000-0002-8886-1846}}
+}
+\date{%
+  VaidhyaMegha Private Limited, India\\[2pt]
+  \url{https://samyama.ai/}\\[8pt]
+  March 2026
+}
+
+\begin{document}
+\maketitle
+
+% ============================================================
+% ABSTRACT
+% ============================================================
+\begin{abstract}
+Biomedical knowledge is fragmented across siloed databases---Reactome for pathways, STRING for protein interactions, Gene Ontology for functional annotations, ClinicalTrials.gov for study registries, and dozens more. Researchers routinely download flat files from each source and write bespoke scripts to cross-reference them, a process that is slow, error-prone, and not reproducible. We present two open-source biomedical knowledge graphs---\textbf{Pathways KG} (118,686 nodes, 834,785 edges from 5 sources) and \textbf{Clinical Trials KG} (7,711,965 nodes, 27,069,085 edges from 5 sources)---built on Samyama, a high-performance graph database written in Rust.
+
+Our contributions are threefold. First, we describe a \textbf{reproducible ETL pattern} for constructing large-scale KGs from heterogeneous public data sources, with cross-source deduplication, batch Cypher loading, and portable snapshot export. Second, we demonstrate \textbf{cross-KG federation}: loading both snapshots into a single graph tenant enables property-based joins across datasets, answering questions like ``Which biological pathways are disrupted by drugs currently in Phase~3 trials for breast cancer?''---a query that neither KG can answer alone. Third, we introduce \textbf{schema-driven MCP server generation}: each KG automatically exposes typed tools for LLM agents via the Model Context Protocol, enabling natural-language access to graph queries without manual tool authoring.
+
+All data sources are open-license (CC~BY~4.0, CC0, OBO). Snapshots, ETL code, and MCP configurations are publicly available. The combined federated graph (7.83M nodes, 27.9M edges) loads in under 3 minutes on commodity hardware (Mac Mini M4, 16GB RAM).
+
+\noindent\textbf{Keywords:} Knowledge Graphs, Biomedical Data Integration, Graph Databases, Cross-KG Federation, Model Context Protocol, Clinical Trials, Biological Pathways, OpenCypher.
+\end{abstract}
+
+% ============================================================
+% 1. INTRODUCTION
+% ============================================================
+\section{Introduction}
+
+Biological and clinical knowledge is distributed across dozens of public databases, each with its own schema, identifiers, and access patterns. A researcher investigating how a cancer drug affects cellular signaling must consult ClinicalTrials.gov for trial metadata, DrugBank for drug--target interactions, Reactome for pathway membership, STRING for protein--protein interactions, and Gene Ontology for functional annotations. These databases are maintained by independent communities, updated on different schedules, and stored in incompatible formats (TSV, XML, JSON, OBO, GAF).
+
+Knowledge graphs (KGs) offer a natural integration point~\citep{hogan2021knowledge}: entities from different sources become nodes, and relationships between them become edges. A single Cypher query can traverse from a clinical trial to the biological pathways disrupted by its drug candidate---a query that would require joining across five separate databases in the flat-file paradigm.
+
+However, constructing biomedical KGs at scale remains challenging. Prior efforts such as Bio2RDF~\citep{callahan2013bio2rdf}, Hetionet~\citep{himmelstein2017systematic}, and the Clinical Knowledge Graph~\citep{santos2022clinical} have made significant progress, but each faces limitations: Bio2RDF requires a dedicated SPARQL endpoint infrastructure, Hetionet is a static dataset without an update pipeline, and the Clinical Knowledge Graph targets a single data source.
+
+We address these limitations with three contributions:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Reproducible KG construction.} We present ETL pipelines for two large-scale biomedical KGs---Pathways KG (5 sources, 119K nodes) and Clinical Trials KG (5 sources, 7.7M nodes)---built on Samyama Graph Database using a common pattern: download, parse, deduplicate, batch-load via Cypher, and export as portable \texttt{.sgsnap} snapshots.
+
+  \item \textbf{Cross-KG federation.} We show that loading multiple snapshots into a single graph tenant enables property-based federation---joining on shared identifiers (UniProt accessions, DrugBank IDs, NCBI Gene IDs) without ETL-time merging. We demonstrate five cross-KG query patterns spanning translational medicine.
+
+  \item \textbf{Schema-driven AI agent access.} Each KG ships with a Model Context Protocol (MCP)~\citep{anthropic2024mcp} server configuration that auto-generates typed tools from the graph schema. LLM agents can query the KG via natural language without hand-coded tool definitions.
+\end{enumerate}
+
+All code, snapshots, and MCP configurations are open-source\footnote{Pathways KG: \url{https://github.com/samyama-ai/pathways-kg}; Clinical Trials KG: \url{https://github.com/samyama-ai/clinicaltrials-kg}; Snapshots: \url{https://github.com/samyama-ai/samyama-graph/releases}}.
+
+% ============================================================
+% 2. BACKGROUND AND RELATED WORK
+% ============================================================
+\section{Background and Related Work}
+
+\subsection{Biomedical Knowledge Graphs}
+
+\textbf{Hetionet}~\citep{himmelstein2017systematic} integrates 29 public resources into a single heterogeneous network (47K nodes, 2.25M edges, 24 edge types) for drug repurposing. While influential, it is a static dataset from 2017 with no update pipeline.
+
+\textbf{Bio2RDF}~\citep{callahan2013bio2rdf} converts life science databases to RDF and serves them via SPARQL endpoints. The RDF approach offers semantic interoperability but introduces complexity (OWL reasoning, blank nodes) and performance overhead for traversal-heavy queries.
+
+\textbf{Clinical Knowledge Graph (CKG)}~\citep{santos2022clinical} builds a comprehensive biomedical graph from 25+ databases using Neo4j. CKG is the closest prior work to ours; we differ in three ways: (1) we use a Rust-native engine rather than Neo4j, achieving higher ingestion throughput; (2) we introduce portable snapshots for instant deployment; and (3) we provide schema-driven MCP servers for LLM agent integration.
+
+\textbf{PrimeKG}~\citep{chandak2023building} constructs a precision medicine KG (129K nodes, 8M edges) from 20 sources. PrimeKG targets drug--disease prediction via graph neural networks; our focus is on interactive querying and AI agent access.
+
+\subsection{Graph Database Systems}
+
+Neo4j~\citep{neo4j2024} is the dominant property graph database. Amazon Neptune, TigerGraph, and MemGraph offer alternatives with varying trade-offs. Samyama~\citep{mandarapu2026samyama} is a Rust-native graph database combining property graph storage, vector search, 22 metaheuristic solvers, and OpenCypher support in a single binary.
+
+\subsection{Model Context Protocol (MCP)}
+
+MCP~\citep{anthropic2024mcp} is an open standard for connecting LLM agents to external data sources via typed tools. An MCP server exposes a set of tools (functions with typed parameters and return values) that an LLM can invoke during a conversation. Schema-driven MCP generation---automatically creating tools from a KG schema---eliminates the manual tool authoring bottleneck.
+
+% ============================================================
+% 3. DATA SOURCES
+% ============================================================
+\section{Data Sources}
+
+Both KGs draw exclusively from open-license public databases. Table~\ref{tab:sources} summarizes the sources.
+
+\begin{table}[H]
+\centering
+\caption{Data sources for the two biomedical KGs. All are open-license and human-specific (organism 9606 where applicable).}
+\label{tab:sources}
+\small
+\begin{tabular}{llllr}
+\toprule
+\textbf{KG} & \textbf{Source} & \textbf{Content} & \textbf{License} & \textbf{Size} \\
+\midrule
+\multirow{5}{*}{Pathways} & Reactome & Pathways, reactions, complexes & CC BY 4.0 & 172 MB \\
+& STRING v12.0 & Protein--protein interactions & CC BY 4.0 & 900 MB \\
+& Gene Ontology & GO terms \& annotations & OBO & 265 MB \\
+& WikiPathways & Community-curated pathways & CC0 & 336 KB \\
+& UniProt & Protein metadata, gene/disease/drug links & CC BY 4.0 & 20 MB \\
+\midrule
+\multirow{5}{*}{Clinical} & ClinicalTrials.gov & Trial registry (575K studies) & Public domain & API \\
+& MeSH (NLM) & Disease hierarchy & Free & API \\
+& RxNorm (NLM) & Drug normalization \& ATC codes & Free & API \\
+& OpenFDA & Adverse event reports (FAERS) & Public domain & API \\
+& PubMed (NLM) & Trial-linked publications & Free & API \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+% 4. KNOWLEDGE GRAPH CONSTRUCTION
+% ============================================================
+\section{Knowledge Graph Construction}
+
+\subsection{ETL Pattern}
+
+Both KGs follow a common five-phase pattern:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Download.} A data downloader with resume support fetches all source files. Compressed files are decompressed automatically.
+  \item \textbf{Parse \& Filter.} Source-specific parsers extract entities and relationships. Human-only filters are applied where applicable (organism ID 9606).
+  \item \textbf{Deduplicate.} A shared \emph{Registry} tracks seen entities across phases (e.g., a protein loaded from Reactome is not re-created when encountered in STRING).
+  \item \textbf{Batch Load.} Nodes and edges are loaded via batched Cypher \texttt{CREATE} statements (50--100 entities per batch) through Samyama's HTTP API.
+  \item \textbf{Snapshot Export.} The loaded graph is exported as a portable \texttt{.sgsnap} file (gzip JSON-lines), enabling instant restoration on any Samyama instance.
+\end{enumerate}
+
+\subsection{Pathways KG}
+
+The Pathways KG integrates molecular biology data into a graph with 5 node labels and 9 edge types (Table~\ref{tab:pathways-schema}).
+
+\begin{table}[H]
+\centering
+\caption{Pathways KG schema.}
+\label{tab:pathways-schema}
+\small
+\begin{tabular}{llr}
+\toprule
+\textbf{Node Label} & \textbf{Key Property} & \textbf{Count} \\
+\midrule
+GOTerm & go\_id & 51,897 \\
+Protein & uniprot\_id & 37,990 \\
+Complex & reactome\_id & 15,963 \\
+Reaction & reactome\_id & 9,988 \\
+Pathway & reactome\_id & 2,848 \\
+\midrule
+\multicolumn{2}{l}{\textbf{Total nodes}} & \textbf{118,686} \\
+\bottomrule
+\end{tabular}
+\quad
+\begin{tabular}{lr}
+\toprule
+\textbf{Edge Type} & \textbf{Count} \\
+\midrule
+ANNOTATED\_WITH & 265,492 \\
+INTERACTS\_WITH & 227,818 \\
+PARTICIPATES\_IN & 140,153 \\
+CATALYZES & 121,365 \\
+IS\_A & 58,799 \\
+COMPONENT\_OF & 8,186 \\
+PART\_OF & 7,122 \\
+REGULATES & 2,986 \\
+CHILD\_OF & 2,864 \\
+\midrule
+\textbf{Total edges} & \textbf{834,785} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The five ETL phases execute in order: (1) \textbf{Reactome Core}---pathways, reactions, complexes, and protein participants from Reactome's flat files; (2) \textbf{STRING Interactions}---high-confidence ($\geq$700/999) protein--protein interactions with ENSP$\rightarrow$UniProt ID mapping; (3) \textbf{Gene Ontology}---47K GO terms with IS\_A/PART\_OF/REGULATES hierarchy and 265K protein annotations; (4) \textbf{WikiPathways}---community-curated pathways deduplicated against Reactome; (5) \textbf{UniProt Enrichment}---gene mappings, disease associations, and drug targets.
+
+\subsection{Clinical Trials KG}
+
+The Clinical Trials KG models the translational medicine domain with 15 node labels and 25 edge types (Table~\ref{tab:ct-schema}).
+
+\begin{table}[H]
+\centering
+\caption{Clinical Trials KG schema (abbreviated; 15 labels, 25 edge types).}
+\label{tab:ct-schema}
+\small
+\begin{tabular}{llr}
+\toprule
+\textbf{Node Label} & \textbf{Key Property} & \textbf{Est.\ Count} \\
+\midrule
+ClinicalTrial & nct\_id & 575,000+ \\
+Condition & name, mesh\_id & varies \\
+Intervention & name, type & varies \\
+Drug & rxnorm\_cui, drugbank\_id & varies \\
+Protein & uniprot\_id & varies \\
+Gene & gene\_id, symbol & varies \\
+MeSHDescriptor & descriptor\_id & varies \\
+Sponsor & name, class & varies \\
+Site & facility, country & varies \\
+Publication & pmid, doi & varies \\
+AdverseEvent & term, is\_serious & varies \\
+ArmGroup & label, type & varies \\
+Outcome & measure, type & varies \\
+DrugClass & atc\_code, level & varies \\
+LabTest & loinc\_code & varies \\
+\midrule
+\multicolumn{2}{l}{\textbf{Total nodes}} & \textbf{7,711,965} \\
+\midrule
+\multicolumn{2}{l}{\textbf{Total edges}} & \textbf{27,069,085} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The ETL pipeline queries the ClinicalTrials.gov API v2 for study metadata, enriches conditions with MeSH hierarchy, normalizes drug names via RxNorm, links adverse events from OpenFDA's FAERS database, and associates publications from PubMed E-utilities.
+
+% ============================================================
+% 5. CROSS-KG FEDERATION
+% ============================================================
+\section{Cross-KG Federation}
+
+\subsection{Motivation}
+
+The Pathways KG knows molecular biology---which proteins interact, what pathways they participate in. The Clinical Trials KG knows translational medicine---which drugs are in trials, what conditions they treat. Neither alone can answer:
+
+\begin{quote}
+\emph{``Which biological pathways are disrupted by drugs currently in Phase~3 trials for breast cancer?''}
+\end{quote}
+
+This query requires traversing: \texttt{ClinicalTrial} $\xrightarrow{\text{STUDIES}}$ \texttt{Condition} (breast cancer) $\leftarrow$ \texttt{ClinicalTrial} $\xrightarrow{\text{TESTS}}$ \texttt{Intervention} $\xrightarrow{\text{CODED\_AS\_DRUG}}$ \texttt{Drug} $\xrightarrow{\text{TARGETS}}$ \texttt{Protein} $\xrightarrow{\text{PARTICIPATES\_IN}}$ \texttt{Pathway}. The first three hops are in the Clinical Trials KG; the last two are in the Pathways KG. The \texttt{Drug}$\rightarrow$\texttt{Protein} edge is the bridge.
+
+\subsection{Join Points}
+
+Three entity types appear in both KGs with matching identifiers:
+
+\begin{table}[H]
+\centering
+\caption{Cross-KG join points.}
+\label{tab:joins}
+\small
+\begin{tabular}{llll}
+\toprule
+\textbf{Entity} & \textbf{Pathways Property} & \textbf{Clinical Trials Property} & \textbf{Identifier} \\
+\midrule
+Protein & \texttt{Protein.uniprot\_id} & \texttt{Protein.uniprot\_id} & UniProt accession \\
+Drug & \texttt{Drug.drugbank\_id} & \texttt{Drug.drugbank\_id} & DrugBank ID \\
+Gene & \texttt{Gene.gene\_id} & \texttt{Gene.gene\_id} & NCBI Gene ID \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Federation Mechanism}
+
+Samyama supports loading multiple snapshots into a single tenant. Each snapshot import appends nodes and edges to the existing graph. Since imports create new node IDs, entities from different snapshots with the same identifier (e.g., UniProt P04637 for TP53) exist as separate graph nodes. Cross-KG queries use \textbf{property-based joins}:
+
+\begin{lstlisting}
+-- Pathways disrupted by Phase 3 breast cancer drugs
+MATCH (ct:ClinicalTrial)-[:STUDIES]->(cond:Condition)
+WHERE ct.phase = 'Phase 3' AND cond.name CONTAINS 'Breast'
+WITH ct
+MATCH (ct)-[:TESTS]->(int:Intervention)
+      -[:CODED_AS_DRUG]->(drug:Drug)
+WITH DISTINCT drug
+MATCH (drug)-[:TARGETS]->(prot1:Protein)
+MATCH (prot2:Protein)-[:PARTICIPATES_IN]->(pw:Pathway)
+WHERE prot1.uniprot_id = prot2.uniprot_id
+RETURN pw.name AS pathway,
+       count(DISTINCT drug.name) AS drugs_targeting
+ORDER BY drugs_targeting DESC LIMIT 15
+\end{lstlisting}
+
+The \texttt{WHERE prot1.uniprot\_id = prot2.uniprot\_id} clause is the cross-KG bridge---it joins a Protein node from the Clinical Trials snapshot with a Protein node from the Pathways snapshot.
+
+\subsection{Federation Query Patterns}
+
+We identify five cross-KG query patterns of increasing complexity:
+
+\begin{table}[H]
+\centering
+\caption{Cross-KG federation query patterns.}
+\label{tab:patterns}
+\small
+\begin{tabular}{p{3.5cm}p{4cm}p{4cm}}
+\toprule
+\textbf{Pattern} & \textbf{Clinical Trials $\rightarrow$} & \textbf{$\rightarrow$ Pathways} \\
+\midrule
+Drug $\rightarrow$ Pathway & Trial $\rightarrow$ Drug (via intervention) & Drug target $\rightarrow$ Protein $\rightarrow$ Pathway \\
+Drug $\rightarrow$ GO Process & Trial $\rightarrow$ Drug & Drug target $\rightarrow$ Protein $\rightarrow$ GOTerm \\
+Drug $\rightarrow$ PPI Network & Trial $\rightarrow$ Drug $\rightarrow$ Protein target & Target $\rightarrow$ INTERACTS\_WITH neighbors \\
+Disease $\rightarrow$ Pathway & Gene $\rightarrow$ Disease association & Gene $\rightarrow$ Protein $\rightarrow$ Pathway \\
+Adverse Event $\rightarrow$ Pathway & Trial $\rightarrow$ AdverseEvent $\rightarrow$ Drug & Drug $\rightarrow$ Protein $\rightarrow$ Pathway \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+% 6. SCHEMA-DRIVEN MCP SERVER GENERATION
+% ============================================================
+\section{Schema-Driven MCP Server Generation}
+
+Each KG ships with a YAML configuration that defines domain-specific MCP tools. At startup, the MCP server:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Discovers schema} from the running Samyama instance (\texttt{GET /api/schema}).
+  \item \textbf{Auto-generates tools} for each node label (search, get, count) and each edge type (find connections).
+  \item \textbf{Registers domain tools} from the YAML configuration---each tool is a parameterized Cypher template with typed inputs (e.g., \texttt{protein\_name: string}, \texttt{confidence\_threshold: int}).
+\end{enumerate}
+
+The Pathways KG MCP server exposes 12 domain-specific tools (Table~\ref{tab:mcp}).
+
+\begin{table}[H]
+\centering
+\caption{Pathways KG MCP tools (subset).}
+\label{tab:mcp}
+\small
+\begin{tabular}{lp{7cm}}
+\toprule
+\textbf{Tool} & \textbf{Description} \\
+\midrule
+\texttt{pathway\_members} & List proteins in a pathway (search by name) \\
+\texttt{interaction\_partners} & PPI neighbors above confidence threshold \\
+\texttt{shared\_pathways} & Pathways shared between two proteins \\
+\texttt{upstream\_regulators} & Multi-hop PPI traversal up to N steps \\
+\texttt{drug\_pathway\_impact} & Pathways affected by a drug via protein targets \\
+\texttt{disease\_pathways} & Pathways associated with a disease through gene links \\
+\texttt{go\_enrichment} & GO terms enriched in pathway proteins \\
+\texttt{protein\_function\_summary} & Pathways, GO processes, disease associations for a protein \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+An LLM agent connected to this MCP server can answer ``What pathways does TP53 participate in?'' without writing Cypher. The agent calls \texttt{pathway\_members(protein\_name="TP53")} and receives structured results.
+
+% ============================================================
+% 7. EVALUATION
+% ============================================================
+\section{Evaluation}
+
+We evaluate construction time, query performance, and federation correctness on a Mac Mini M4 (Apple M4, 10 cores, 16GB RAM).
+
+\subsection{Construction Performance}
+
+\begin{table}[H]
+\centering
+\caption{KG construction performance.}
+\label{tab:construction}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{KG} & \textbf{Nodes} & \textbf{Edges} & \textbf{Snapshot Size} & \textbf{Import Time} \\
+\midrule
+Pathways KG & 118,686 & 834,785 & 9 MB & $<$ 5 s \\
+Clinical Trials KG & 7,711,965 & 27,069,085 & 711 MB & $\sim$90 s \\
+\midrule
+\textbf{Combined} & \textbf{7,830,651} & \textbf{27,903,870} & \textbf{720 MB} & \textbf{$\sim$95 s} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Snapshot import uses gzip-compressed JSON-lines format. The Pathways KG loads in under 5 seconds; the Clinical Trials KG, with its 7.7M nodes, loads in approximately 90 seconds. Both load into the same tenant for federation.
+
+\subsection{Query Performance}
+
+We benchmark representative queries from each KG and the federated graph:
+
+\begin{table}[H]
+\centering
+\caption{Query latency on Mac Mini M4 (median of 5 runs).}
+\label{tab:queries}
+\small
+\begin{tabular}{p{5cm}lrr}
+\toprule
+\textbf{Query} & \textbf{KG} & \textbf{Results} & \textbf{Latency} \\
+\midrule
+Label distribution & Pathways & 5 labels & $<$1 ms \\
+Top pathways by protein count & Pathways & 10 rows & 85 ms \\
+PPI hub proteins & Pathways & 10 rows & 420 ms \\
+TP53 2-hop PPI neighborhood & Pathways & 15 rows & 1.2 s \\
+Pathway crosstalk ($\geq$100 shared) & Pathways & 10 rows & 3.8 s \\
+\midrule
+Phase 3 breast cancer trials & Clinical & varies & 120 ms \\
+Trials by sponsor class & Clinical & 7 rows & 45 ms \\
+\midrule
+\textbf{Federated: Drug $\rightarrow$ Pathway} & \textbf{Combined} & 15 rows & 2.5 s \\
+\textbf{Federated: Disease $\rightarrow$ Pathway} & \textbf{Combined} & 10 rows & 1.8 s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Federated queries execute in 1--4 seconds, which is acceptable for interactive exploration. The property-based join (\texttt{WHERE p1.uniprot\_id = p2.uniprot\_id}) is the primary cost; creating an index on \texttt{Protein.uniprot\_id} would reduce this to sub-second.
+
+\subsection{Federation Correctness}
+
+To validate that cross-KG joins produce meaningful results, we verified three properties:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Join overlap}: Proteins with \texttt{uniprot\_id} appear in both snapshots (verified by counting shared IDs).
+  \item \textbf{Transitivity}: A drug that targets a protein in the Clinical Trials KG, where that protein participates in a pathway in the Pathways KG, correctly produces the pathway in the federated query result.
+  \item \textbf{Completeness}: The federated query returns a superset of pathways obtainable by manually cross-referencing DrugBank target data with Reactome pathway membership.
+\end{enumerate}
+
+% ============================================================
+% 8. VISUALIZATION
+% ============================================================
+\section{Interactive Visualization}
+
+Samyama Insight, a React-based frontend, provides schema-driven visualization of each KG:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Dashboard}: Auto-generated panels showing label distribution, edge type counts, and property statistics per tenant.
+  \item \textbf{Query Console}: OpenCypher editor with result tables, JSON views, and EXPLAIN/PROFILE plan visualization.
+  \item \textbf{Graph Simulation}: Force-directed canvas with per-label colors/shapes, live activity particles, entity filtering, and a legend overlay. The simulation engine is fully schema-driven---it auto-configures from the tenant's schema at runtime.
+\end{itemize}
+
+Demo recordings for both KGs are available as MP4 videos\footnote{Cricket KG demo: \url{https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v2}; Pathways KG demo: \url{https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v3}}.
+
+% ============================================================
+% 9. DISCUSSION
+% ============================================================
+\section{Discussion}
+
+\subsection{Property Joins vs.\ Entity Merging}
+
+Our federation approach uses property-based joins rather than merging entities at load time. This has trade-offs:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Advantages}: Snapshots remain independent and composable; no load-order dependency; straightforward to add or remove a KG from the federation.
+  \item \textbf{Disadvantages}: Duplicate nodes inflate storage; property joins are slower than traversals on merged nodes; no referential integrity between the two copies of a Protein.
+\end{itemize}
+
+For production workloads, a post-load \texttt{MERGE} pass or ETL-time deduplication would eliminate duplicates. For exploration and prototyping---the primary use case for these KGs---property joins are pragmatic.
+
+\subsection{Limitations}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Snapshot currency}: Snapshots are point-in-time exports. Source databases (especially ClinicalTrials.gov) update continuously. Periodic re-export is required.
+  \item \textbf{Identifier coverage}: Not all proteins in the Clinical Trials KG have UniProt IDs (some have only gene symbols). The join overlap depends on identifier normalization quality.
+  \item \textbf{Memory requirements}: The combined 7.8M-node graph requires approximately 8GB RAM. Machines with less memory can load the Pathways KG alone (119K nodes, $<$500MB).
+  \item \textbf{No cross-tenant queries}: Currently, federation requires loading both snapshots into a single tenant. Native cross-tenant query support is planned for a future Samyama release.
+\end{enumerate}
+
+\subsection{Generalizability}
+
+The pattern is not limited to biomedicine. Any domain with shared identifiers across data sources can use the same approach: build independent KGs with common entity properties, export as snapshots, load into a single tenant, and query across them. We have applied this pattern to sports (Cricket KG, 36K nodes) and industrial operations (AssetOps KG, 781 nodes) in addition to the biomedical KGs described here.
+
+% ============================================================
+% 10. CONCLUSION
+% ============================================================
+\section{Conclusion}
+
+We presented two open-source biomedical knowledge graphs---Pathways KG and Clinical Trials KG---built on Samyama Graph Database. Together they contain 7.83 million nodes and 27.9 million edges from 10 public data sources. We demonstrated that loading both snapshots into a single graph tenant enables cross-KG federated queries that bridge molecular biology and translational medicine. We introduced schema-driven MCP server generation for LLM agent access to graph queries.
+
+All code, snapshots, ETL pipelines, and MCP configurations are open-source under Apache License 2.0. Researchers can reproduce the full pipeline---from data download to federated queries---in under 10 minutes on commodity hardware.
+
+\subsection*{Data and Code Availability}
+
+\begin{itemize}[leftmargin=*]
+  \item Pathways KG: \url{https://github.com/samyama-ai/pathways-kg}
+  \item Clinical Trials KG: \url{https://github.com/samyama-ai/clinicaltrials-kg}
+  \item Samyama Graph Database: \url{https://github.com/samyama-ai/samyama-graph}
+  \item Snapshots: \url{https://github.com/samyama-ai/samyama-graph/releases}
+  \item Samyama Graph Book: \url{https://samyama-ai.github.io/samyama-graph-book/}
+\end{itemize}
+
+% ============================================================
+% REFERENCES
+% ============================================================
+\bibliographystyle{plainnat}
+\bibliography{paper4_biomedical_kg}
+
+\end{document}

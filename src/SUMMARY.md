@@ -48,4 +48,5 @@
 # Research & Publications
 - [Research Paper: Samyama Overview](./research_paper_summary.md)
 - [Research Paper: Knowledge Graphs for Industrial Operations](./industrial_kg_paper.md)
+- [Research Paper: Open Biomedical Knowledge Graphs](./biomedical_kg_paper.md)
 - [Index of Implemented Papers](./implemented_papers.md)
