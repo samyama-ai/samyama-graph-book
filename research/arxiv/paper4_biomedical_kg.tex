@@ -77,7 +77,7 @@ Biomedical knowledge is fragmented across siloed databases---Reactome for pathwa
 
 Our contributions are threefold. First, we describe a \textbf{reproducible ETL pattern} for constructing large-scale KGs from heterogeneous public data sources, with cross-source deduplication, batch Cypher loading, and portable snapshot export. Second, we demonstrate \textbf{cross-KG federation}: loading both snapshots into a single graph tenant enables property-based joins across datasets, answering questions like ``Which biological pathways are disrupted by drugs currently in Phase~3 trials for breast cancer?''---a query that neither KG can answer alone. Third, we introduce \textbf{schema-driven MCP server generation}: each KG automatically exposes typed tools for LLM agents via the Model Context Protocol, enabling natural-language access to graph queries without manual tool authoring.
 
-All data sources are open-license (CC~BY~4.0, CC0, OBO). Snapshots, ETL code, and MCP configurations are publicly available. The combined federated graph (7.83M nodes, 27.9M edges) loads in under 3 minutes on commodity hardware (Mac Mini M4, 16GB RAM).
+All data sources are open-license (CC~BY~4.0, CC0, OBO). Snapshots, ETL code, and MCP configurations are publicly available. The combined federated graph (7.89M nodes, 27.8M edges) loads in 76 seconds on commodity hardware (Mac Mini M4, 16GB RAM), and the signature cross-KG query---``which pathways are disrupted by drugs in Phase~3 breast cancer trials?''---returns validated results in 2.1 seconds.
 
 \noindent\textbf{Keywords:} Knowledge Graphs, Biomedical Data Integration, Graph Databases, Cross-KG Federation, Model Context Protocol, Clinical Trials, Biological Pathways, OpenCypher.
 \end{abstract}
@@ -393,15 +393,16 @@ We evaluate construction time, query performance, and federation correctness on 
 \toprule
 \textbf{KG} & \textbf{Nodes} & \textbf{Edges} & \textbf{Snapshot Size} & \textbf{Import Time} \\
 \midrule
-Pathways KG & 118,686 & 834,785 & 9 MB & $<$ 5 s \\
-Clinical Trials KG & 7,711,965 & 27,069,085 & 711 MB & $\sim$90 s \\
+Pathways KG & 118,686 & 834,785 & 9 MB & 1 s \\
+Clinical Trials KG & 7,774,446 & 26,973,997 & 711 MB & 72 s \\
+Drug enrichment (32 drugs) & +33 & +235 & --- & 3 s \\
 \midrule
-\textbf{Combined} & \textbf{7,830,651} & \textbf{27,903,870} & \textbf{720 MB} & \textbf{$\sim$95 s} \\
+\textbf{Combined} & \textbf{7,893,165} & \textbf{27,809,017} & \textbf{720 MB} & \textbf{76 s} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Snapshot import uses gzip-compressed JSON-lines format. The Pathways KG loads in under 5 seconds; the Clinical Trials KG, with its 7.7M nodes, loads in approximately 90 seconds. Both load into the same tenant for federation.
+Snapshot import uses gzip-compressed JSON-lines format. The Pathways KG loads in 1 second; the Clinical Trials KG, with its 7.8M nodes, loads in 72 seconds. A targeted drug enrichment step adds 32 breast cancer drug nodes with 36 TARGETS edges and 199 CODED\_AS\_DRUG edges in 3 seconds. The full pipeline---from empty tenant to federated graph---completes in 76 seconds.
 
 \subsection{Query Performance}
 
@@ -416,31 +417,27 @@ We benchmark representative queries from each KG and the federated graph:
 \toprule
 \textbf{Query} & \textbf{KG} & \textbf{Results} & \textbf{Latency} \\
 \midrule
-Label distribution & Pathways & 5 labels & $<$1 ms \\
+Label distribution (15 labels) & Combined & 15 rows & 7.8 s \\
+Proteins with uniprot\_id & Combined & 1 row & 0.5 s \\
 Top pathways by protein count & Pathways & 10 rows & 85 ms \\
-PPI hub proteins & Pathways & 10 rows & 420 ms \\
-TP53 2-hop PPI neighborhood & Pathways & 15 rows & 1.2 s \\
-Pathway crosstalk ($\geq$100 shared) & Pathways & 10 rows & 3.8 s \\
+PPI hub proteins (TP53: 739) & Pathways & 5 rows & 1.4 s \\
+Breast cancer trial count & Clinical & 5 rows & 1.2 s \\
 \midrule
-Phase 3 breast cancer trials & Clinical & varies & 120 ms \\
-Trials by sponsor class & Clinical & 7 rows & 45 ms \\
-\midrule
-\textbf{Federated: Drug $\rightarrow$ Pathway} & \textbf{Combined} & 15 rows & 2.5 s \\
-\textbf{Federated: Disease $\rightarrow$ Pathway} & \textbf{Combined} & 10 rows & 1.8 s \\
+\textbf{Drug $\rightarrow$ Pathway (6-hop)} & \textbf{Combined} & \textbf{10 rows} & \textbf{2.1 s} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Federated queries execute in 1--4 seconds, which is acceptable for interactive exploration. The property-based join (\texttt{WHERE p1.uniprot\_id = p2.uniprot\_id}) is the primary cost; creating an index on \texttt{Protein.uniprot\_id} would reduce this to sub-second.
+The signature federated query---``pathways disrupted by breast cancer trial drugs''---traverses 6 hops across both KGs and returns in 2.1 seconds. Label distribution over the full 7.9M-node graph takes 7.8 seconds (full scan). Individual KG queries execute in under 1.5 seconds.
 
 \subsection{Federation Correctness}
 
-To validate that cross-KG joins produce meaningful results, we verified three properties:
+We validated cross-KG federation on the Mac Mini M4 with the following results:
 
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Join overlap}: Proteins with \texttt{uniprot\_id} appear in both snapshots (verified by counting shared IDs).
-  \item \textbf{Transitivity}: A drug that targets a protein in the Clinical Trials KG, where that protein participates in a pathway in the Pathways KG, correctly produces the pathway in the federated query result.
-  \item \textbf{Completeness}: The federated query returns a superset of pathways obtainable by manually cross-referencing DrugBank target data with Reactome pathway membership.
+  \item \textbf{Bridge construction}: 32 breast cancer drug nodes were created from a curated DrugBank mapping, yielding 36 TARGETS edges (Drug $\rightarrow$ Protein) and 199 CODED\_AS\_DRUG edges (Intervention $\rightarrow$ Drug). The 1,544 matched drug interventions span 5,338 distinct drug names in breast cancer trials.
+  \item \textbf{Join overlap}: 37,990 Protein nodes with \texttt{uniprot\_id} from the Pathways KG are available for joining. Of the 36 drug-target proteins, all are present in the Pathways KG's protein-protein interaction network.
+  \item \textbf{Federation query result}: The 6-hop query ``pathways disrupted by breast cancer trial drugs'' returns 10 pathways, with \emph{Disease} (21 drugs), \emph{Signal Transduction} (19 drugs), \emph{Immune System} (12 drugs), and \emph{Cell Cycle} (12 drugs) as the top results. These align with known breast cancer biology: HER2 signaling (Trastuzumab), CDK4/6 cell cycle control (Palbociclib, Ribociclib), and immune checkpoint blockade (Pembrolizumab, Atezolizumab).
 \end{enumerate}
 
 % ============================================================
@@ -492,7 +489,7 @@ The pattern is not limited to biomedicine. Any domain with shared identifiers ac
 % ============================================================
 \section{Conclusion}
 
-We presented two open-source biomedical knowledge graphs---Pathways KG and Clinical Trials KG---built on Samyama Graph Database. Together they contain 7.83 million nodes and 27.9 million edges from 10 public data sources. We demonstrated that loading both snapshots into a single graph tenant enables cross-KG federated queries that bridge molecular biology and translational medicine. We introduced schema-driven MCP server generation for LLM agent access to graph queries.
+We presented two open-source biomedical knowledge graphs---Pathways KG and Clinical Trials KG---built on Samyama Graph Database. Together they contain 7.89 million nodes and 27.8 million edges from 10 public data sources. We demonstrated that loading both snapshots into a single graph tenant, combined with a targeted drug-target enrichment step (32 drugs, 36 TARGETS edges), enables cross-KG federated queries that bridge molecular biology and translational medicine. The 6-hop query ``pathways disrupted by Phase~3 breast cancer drugs'' returns biologically validated results---Signal Transduction, Immune System, Cell Cycle---in 2.1 seconds on commodity hardware. We introduced schema-driven MCP server generation for LLM agent access to graph queries.
 
 All code, snapshots, ETL pipelines, and MCP configurations are open-source under Apache License 2.0. Researchers can reproduce the full pipeline---from data download to federated queries---in under 10 minutes on commodity hardware.
 
