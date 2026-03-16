@@ -410,7 +410,7 @@ We benchmark representative queries from each KG and the federated graph:
 
 \begin{table}[H]
 \centering
-\caption{Query latency on Mac Mini M4 (median of 5 runs).}
+\caption{Query latency on Mac Mini M4.}
 \label{tab:queries}
 \small
 \begin{tabular}{p{5cm}lrr}
@@ -491,7 +491,7 @@ The pattern is not limited to biomedicine. Any domain with shared identifiers ac
 
 We presented two open-source biomedical knowledge graphs---Pathways KG and Clinical Trials KG---built on Samyama Graph Database. Together they contain 7.89 million nodes and 27.8 million edges from 10 public data sources. We demonstrated that loading both snapshots into a single graph tenant, combined with a targeted drug-target enrichment step (32 drugs, 36 TARGETS edges), enables cross-KG federated queries that bridge molecular biology and translational medicine. The 6-hop query ``pathways disrupted by Phase~3 breast cancer drugs'' returns biologically validated results---Signal Transduction, Immune System, Cell Cycle---in 2.1 seconds on commodity hardware. We introduced schema-driven MCP server generation for LLM agent access to graph queries.
 
-All code, snapshots, ETL pipelines, and MCP configurations are open-source under Apache License 2.0. Researchers can reproduce the full pipeline---from data download to federated queries---in under 10 minutes on commodity hardware.
+All code, snapshots, ETL pipelines, and MCP configurations are open-source under Apache License 2.0. Researchers can reproduce the federation---from snapshot import to cross-KG queries---in under 2 minutes on commodity hardware.
 
 \subsection*{Data and Code Availability}
 
