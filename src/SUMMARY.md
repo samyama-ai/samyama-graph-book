@@ -37,6 +37,10 @@
 - [Ecosystem Architecture](./ecosystem_architecture.md)
 - [The Future of Graph DBs](./future_roadmap.md)
 
+# Part VI: Knowledge Graphs
+- [KG Catalog](./kg_catalog.md)
+- [Cross-KG Federation](./kg_federation.md)
+
 # Appendices
 - [Frequently Asked Questions](./faq.md)
 - [Glossary](./glossary.md)
