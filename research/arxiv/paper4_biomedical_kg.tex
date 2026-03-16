@@ -73,7 +73,7 @@
 % ABSTRACT
 % ============================================================
 \begin{abstract}
-Biomedical knowledge is fragmented across siloed databases---Reactome for pathways, STRING for protein interactions, Gene Ontology for functional annotations, ClinicalTrials.gov for study registries, and dozens more. Researchers routinely download flat files from each source and write bespoke scripts to cross-reference them, a process that is slow, error-prone, and not reproducible. We present two open-source biomedical knowledge graphs---\textbf{Pathways KG} (118,686 nodes, 834,785 edges from 5 sources) and \textbf{Clinical Trials KG} (7,711,965 nodes, 27,069,085 edges from 5 sources)---built on Samyama, a high-performance graph database written in Rust.
+Biomedical knowledge is fragmented across siloed databases---Reactome for pathways, STRING for protein interactions, Gene Ontology for functional annotations, ClinicalTrials.gov for study registries, and dozens more. Researchers routinely download flat files from each source and write bespoke scripts to cross-reference them, a process that is slow, error-prone, and not reproducible. We present two open-source biomedical knowledge graphs---\textbf{Pathways KG} (118,686 nodes, 834,785 edges from 5 sources) and \textbf{Clinical Trials KG} (7,774,446 nodes, 26,973,997 edges from 5 sources)---built on Samyama, a high-performance graph database written in Rust.
 
 Our contributions are threefold. First, we describe a \textbf{reproducible ETL pattern} for constructing large-scale KGs from heterogeneous public data sources, with cross-source deduplication, batch Cypher loading, and portable snapshot export. Second, we demonstrate \textbf{cross-KG federation}: loading both snapshots into a single graph tenant enables property-based joins across datasets, answering questions like ``Which biological pathways are disrupted by drugs currently in Phase~3 trials for breast cancer?''---a query that neither KG can answer alone. Third, we introduce \textbf{schema-driven MCP server generation}: each KG automatically exposes typed tools for LLM agents via the Model Context Protocol, enabling natural-language access to graph queries without manual tool authoring.
 
@@ -249,9 +249,9 @@ Outcome & measure, type & varies \\
 DrugClass & atc\_code, level & varies \\
 LabTest & loinc\_code & varies \\
 \midrule
-\multicolumn{2}{l}{\textbf{Total nodes}} & \textbf{7,711,965} \\
+\multicolumn{2}{l}{\textbf{Total nodes}} & \textbf{7,774,446} \\
 \midrule
-\multicolumn{2}{l}{\textbf{Total edges}} & \textbf{27,069,085} \\
+\multicolumn{2}{l}{\textbf{Total edges}} & \textbf{26,973,997} \\
 \bottomrule
 \end{tabular}
 \end{table}
