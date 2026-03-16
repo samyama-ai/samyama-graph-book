@@ -53,6 +53,12 @@ graph LR
 | `clinicaltrials-kg` | Public | Clinical trials KG (ClinicalTrials.gov / AACT data) |
 | `assetops-kg` | Private | Asset operations KG (industrial IoT data) |
 
+### Ecosystem in Action
+
+> Dashboard → Cypher Queries → Graph Simulation (Cricket KG — 36K nodes, 1.4M edges)
+
+https://github.com/samyama-ai/samyama-graph/releases/download/kg-snapshots-v2/samyama-cricket-demo.mp4
+
 ---
 
 ## 2. samyama-graph Module Architecture
