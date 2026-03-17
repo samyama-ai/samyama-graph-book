@@ -91,7 +91,7 @@ Biological and clinical knowledge is distributed across dozens of public databas
 
 Knowledge graphs (KGs) offer a natural integration point~\citep{hogan2021knowledge}: entities from different sources become nodes, and relationships between them become edges. A single Cypher query can traverse from a clinical trial to the biological pathways disrupted by its drug candidate---a query that would require joining across five separate databases in the flat-file paradigm.
 
-However, constructing biomedical KGs at scale remains challenging. Prior efforts such as Bio2RDF~\citep{callahan2013bio2rdf}, Hetionet~\citep{himmelstein2017systematic}, and the Clinical Knowledge Graph~\citep{santos2022clinical} have made significant progress, but each faces limitations: Bio2RDF requires a dedicated SPARQL endpoint infrastructure, Hetionet is a static dataset without an update pipeline, and the Clinical Knowledge Graph targets a single data source.
+However, constructing biomedical KGs at scale remains challenging. Prior efforts such as Bio2RDF~\citep{belleau2008bio2rdf}, Hetionet~\citep{himmelstein2017systematic}, and the Clinical Knowledge Graph~\citep{santos2022clinical} have made significant progress, but each faces limitations: Bio2RDF requires a dedicated SPARQL endpoint infrastructure, Hetionet is a static dataset without an update pipeline, and the Clinical Knowledge Graph targets a single data source.
 
 We address these limitations with three contributions:
 
@@ -114,7 +114,7 @@ All code, snapshots, and MCP configurations are open-source\footnote{Pathways KG
 
 \textbf{Hetionet}~\citep{himmelstein2017systematic} integrates 29 public resources into a single heterogeneous network (47K nodes, 2.25M edges, 24 edge types) for drug repurposing. While influential, it is a static dataset from 2017 with no update pipeline.
 
-\textbf{Bio2RDF}~\citep{callahan2013bio2rdf} converts life science databases to RDF and serves them via SPARQL endpoints. The RDF approach offers semantic interoperability but introduces complexity (OWL reasoning, blank nodes) and performance overhead for traversal-heavy queries.
+\textbf{Bio2RDF}~\citep{belleau2008bio2rdf} converts life science databases to RDF and serves them via SPARQL endpoints. The RDF approach offers semantic interoperability but introduces complexity (OWL reasoning, blank nodes) and performance overhead for traversal-heavy queries.
 
 \textbf{Clinical Knowledge Graph (CKG)}~\citep{santos2022clinical} builds a comprehensive biomedical graph from 25+ databases using Neo4j. CKG is the closest prior work to ours; we differ in three ways: (1) we use a Rust-native engine rather than Neo4j, achieving higher ingestion throughput; (2) we introduce portable snapshots for instant deployment; and (3) we provide schema-driven MCP servers for LLM agent integration.
 

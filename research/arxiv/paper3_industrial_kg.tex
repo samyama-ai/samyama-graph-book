@@ -72,7 +72,7 @@
 % ABSTRACT
 % ============================================================
 \begin{abstract}
-LLM-based agents for industrial asset operations show promise but achieve limited accuracy when reasoning over flat document stores. The AssetOpsBench benchmark~\citep{ibm2024assetopsbench} establishes that GPT-4 agents achieve 65\% success on 139 industrial maintenance scenarios backed by CouchDB, YAML, and CSV data sources. AssetOpsBench evaluates LLM agent autonomy; we ask a complementary question: \emph{how much does the data model behind the tools affect agent performance?}
+LLM-based agents for industrial asset operations show promise but achieve limited accuracy when reasoning over flat document stores. The AssetOpsBench benchmark~\citep{ibm2025assetopsbench} establishes that GPT-4 agents achieve 65\% success on 139 industrial maintenance scenarios backed by CouchDB, YAML, and CSV data sources. AssetOpsBench evaluates LLM agent autonomy; we ask a complementary question: \emph{how much does the data model behind the tools affect agent performance?}
 
 Building on the same benchmark data and scenarios, we introduce a knowledge graph layer (781 nodes, 955 edges, 16 relationship types) and evaluate three architectures of increasing LLM involvement: (1) deterministic graph handlers with no LLM, achieving 99\% (137/139); (2) LLM-generated Cypher queries against the graph, achieving 83\% (115/139); and (3) the original tool-augmented LLM baseline at 65\% (91/139).
 
@@ -90,7 +90,7 @@ These results suggest that for structured operational domains, the data model---
 
 Industrial asset management generates vast quantities of structured data: sensor telemetry, work orders, failure mode analyses, equipment hierarchies, and maintenance schedules. The rise of Large Language Models (LLMs)~\citep{openai2024gpt4} has prompted efforts to build autonomous agents that can reason over this data---answering operational questions, predicting failures, and recommending maintenance actions.
 
-AssetOpsBench~\citep{ibm2024assetopsbench} provides the first systematic evaluation of such agents, benchmarking GPT-4 across 139 industrial maintenance scenarios spanning five agent types: IoT telemetry, failure mode and symptom reasoning (FMSR), work order management, time-series foundation model queries, and multi-agent coordination. The benchmark architecture follows the now-standard tool-augmented LLM pattern~\citep{schick2023toolformer,yao2023react}: the LLM parses user intent, selects the appropriate tool, formulates arguments, retrieves data from document stores (CouchDB~\citep{anderson2010couchdb}, YAML, CSV), and synthesizes an answer. GPT-4 achieves 65\% on this benchmark.
+AssetOpsBench~\citep{ibm2025assetopsbench} provides the first systematic evaluation of such agents, benchmarking GPT-4 across 139 industrial maintenance scenarios spanning five agent types: IoT telemetry, failure mode and symptom reasoning (FMSR), work order management, time-series foundation model queries, and multi-agent coordination. The benchmark architecture follows the now-standard tool-augmented LLM pattern~\citep{schick2023toolformer,yao2023react}: the LLM parses user intent, selects the appropriate tool, formulates arguments, retrieves data from document stores (CouchDB~\citep{anderson2010couchdb}, YAML, CSV), and synthesizes an answer. GPT-4 achieves 65\% on this benchmark.
 
 AssetOpsBench was designed to evaluate LLM agent autonomy---a valuable research question. We ask a \emph{complementary} question: how much does the data model behind the tools affect agent performance? Examining the benchmark's failure cases, we observe that many are not failures of reasoning but failures of \emph{data access}: hallucinated equipment identifiers, miscounted events across documents, inability to traverse equipment dependencies, and fabricated sensor readings. These are symptoms of asking an LLM to perform \emph{data operations}---counting, joining, traversing---that structured query engines handle deterministically.
 
@@ -111,7 +111,7 @@ This observation motivates our central hypothesis: \textbf{for structured operat
 \section{Background: AssetOpsBench}
 \label{sec:background}
 
-AssetOpsBench~\citep{ibm2024assetopsbench} is a benchmark for evaluating LLM agent autonomy on industrial maintenance tasks. The evaluation measures whether an LLM can autonomously navigate a set of tools to answer operational questions. The benchmark comprises 139 scenarios across five agent types (Table~\ref{tab:ibm-scenarios}).
+AssetOpsBench~\citep{ibm2025assetopsbench} is a benchmark for evaluating LLM agent autonomy on industrial maintenance tasks. The evaluation measures whether an LLM can autonomously navigate a set of tools to answer operational questions. The benchmark comprises 139 scenarios across five agent types (Table~\ref{tab:ibm-scenarios}).
 
 \begin{table}[t]
   \centering
@@ -479,7 +479,7 @@ The cost asymmetry is particularly relevant for industrial operations: sensor ne
 % ============================================================
 \section{Related Work}
 
-\paragraph{LLM agents for tool use.} The ReAct framework~\citep{yao2023react} and Toolformer~\citep{schick2023toolformer} established the pattern of LLMs selecting and invoking external tools. AssetOpsBench~\citep{ibm2024assetopsbench} makes an important contribution by applying this pattern to industrial asset operations via the Model Context Protocol~\citep{mcp2024}, providing the first standardized benchmark in this domain. Our work builds on AssetOpsBench by investigating a complementary dimension: the effect of the data layer behind the tools on agent performance.
+\paragraph{LLM agents for tool use.} The ReAct framework~\citep{yao2023react} and Toolformer~\citep{schick2023toolformer} established the pattern of LLMs selecting and invoking external tools. AssetOpsBench~\citep{ibm2025assetopsbench} makes an important contribution by applying this pattern to industrial asset operations via the Model Context Protocol~\citep{mcp2024}, providing the first standardized benchmark in this domain. Our work builds on AssetOpsBench by investigating a complementary dimension: the effect of the data layer behind the tools on agent performance.
 
 \paragraph{Knowledge graphs and LLMs.} \citet{pan2024unifying} survey approaches to combining LLMs with knowledge graphs, identifying three paradigms: KG-enhanced LLMs, LLM-enhanced KGs, and synergized architectures. Our inverted LLM pattern aligns with their ``synergized'' category---the KG provides structured data access, the LLM provides natural language understanding, and each system handles what it does best.
 
