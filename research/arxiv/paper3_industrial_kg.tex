@@ -77,6 +77,7 @@ LLM-based agents for industrial asset operations show promise but achieve limite
 Building on the same benchmark data and scenarios, we introduce a knowledge graph layer (781 nodes, 955 edges, 16 relationship types) and evaluate three architectures of increasing LLM involvement: (1) deterministic graph handlers with no LLM, achieving 99\% (137/139); (2) LLM-generated Cypher queries against the graph, achieving 83\% (115/139); and (3) the original tool-augmented LLM baseline at 65\% (91/139).
 
 Our key finding is \textbf{inverted LLM usage}: instead of asking the LLM to reason over raw data (a broad, error-prone task), we ask it to generate structured queries from a typed schema---a narrow problem that plays to LLM strengths. The graph then executes deterministically. We additionally contribute 40 new graph-native evaluation scenarios covering multi-hop dependency analysis, vector similarity search, and PageRank-based criticality ranking, on which the knowledge graph scores 100\% versus GPT-4o's 85\%.
+We further evaluate against the full expanded AssetOpsBench suite of 467 scenarios released on HuggingFace (ibm-research/AssetOpsBench), spanning 6 operational domains including monitoring rules, failure-mode-sensor recommendation, and prognostics. Using an expanded graph (1{,}360 nodes, 14 labels, 21 edge types), deterministic handlers achieve 100\% (467/467) with an average score of 0.848---demonstrating that the knowledge graph approach scales to the complete benchmark without degradation.
 
 These results suggest that for structured operational domains, the data model---not the LLM---is the primary bottleneck, and that knowledge graphs can serve as an integration layer between raw industrial data and LLM-based reasoning.
 \end{abstract}
@@ -102,6 +103,7 @@ This observation motivates our central hypothesis: \textbf{for structured operat
   \item \textbf{Inverted LLM usage pattern}: we show that constraining the LLM to query generation from a typed schema---rather than free-form data reasoning---yields an 18 percentage point improvement over reasoning over raw documents (\S\ref{sec:inverted-llm}).
   \item \textbf{Knowledge graph construction}: a complete ETL pipeline transforming the AssetOpsBench data sources into an 11-label, 16-edge-type graph with 384-dimensional failure mode embeddings and equipment dependency topology (\S\ref{sec:kg-construction}).
   \item \textbf{40 new graph-native scenarios} extending the benchmark with multi-hop dependency analysis, vector similarity search, PageRank criticality, cascade analysis, maintenance optimization, and temporal patterns---capabilities structurally impossible with flat document stores (\S\ref{sec:new-scenarios}).
+  \item \textbf{Expanded 467-scenario evaluation} against the full HuggingFace AssetOpsBench release (6 domains, 26 equipment types), achieving 100\% pass rate with 0.848 average score using an extended knowledge graph (\S\ref{sec:hf-expanded}).
   \item \textbf{Scalability analysis} comparing operational cost, latency, and capability at scale across the three architectures (\S\ref{sec:scalability}).
 \end{enumerate}
 
@@ -111,23 +113,24 @@ This observation motivates our central hypothesis: \textbf{for structured operat
 \section{Background: AssetOpsBench}
 \label{sec:background}
 
-AssetOpsBench~\citep{ibm2025assetopsbench} is a benchmark for evaluating LLM agent autonomy on industrial maintenance tasks. The evaluation measures whether an LLM can autonomously navigate a set of tools to answer operational questions. The benchmark comprises 139 scenarios across five agent types (Table~\ref{tab:ibm-scenarios}).
+AssetOpsBench~\citep{ibm2025assetopsbench} is a benchmark for evaluating LLM agent autonomy on industrial maintenance tasks. The evaluation measures whether an LLM can autonomously navigate a set of tools to answer operational questions. The benchmark comprises 467 scenarios across six operational domains (Table~\ref{tab:ibm-scenarios}).
 
 \begin{table}[t]
   \centering
-  \caption{AssetOpsBench scenario distribution.}
+  \caption{Expanded AssetOpsBench scenario distribution (HuggingFace release).}
   \label{tab:ibm-scenarios}
   \begin{tabular}{@{}llr@{}}
     \toprule
-    \textbf{Agent Type} & \textbf{Domain} & \textbf{Count} \\
+    \textbf{Config} & \textbf{Domain} & \textbf{Count} \\
     \midrule
-    IoT          & Site/asset/sensor hierarchy queries  & 20 \\
-    FMSR         & Failure mode and symptom reasoning   & 40 \\
-    WO           & Work order and event management      & 36 \\
-    TSFM         & Time-series foundation model queries & 23 \\
-    Multi-Agent  & Cross-domain coordination            & 20 \\
+    scenarios    & IoT, FMSA, TSFM, WO, multi-agent (original)  & 152 \\
+    rule\_logic  & Monitoring rules \& anomaly detection         & 120 \\
+    FMSR         & Failure mode--sensor recommendation           & 88 \\
+    PHM          & Prognostics, RUL, fault classification        & 75 \\
+    hydrolic\_pump & Hydraulic pump condition detection           & 17 \\
+    compressor   & Compressor predictive maintenance             & 15 \\
     \midrule
-    \textbf{Total} & & \textbf{139} \\
+    \textbf{Total} & & \textbf{467} \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -142,17 +145,17 @@ GPT-4 achieves approximately 65\% (91/139) on these scenarios. The failures clus
 \section{Knowledge Graph Construction}
 \label{sec:kg-construction}
 
-We transform the AssetOpsBench data sources into a typed knowledge graph using an 8-step ETL pipeline. The resulting graph contains 781 nodes across 11 labels, connected by 955 edges across 16 relationship types (Table~\ref{tab:schema}).
+We transform the AssetOpsBench data sources into a typed knowledge graph using an 8-step ETL pipeline. The resulting graph contains 1{,}360 nodes across 14 labels, connected by approximately 2{,}500 edges across 21 relationship types (Table~\ref{tab:schema}).
 
 \begin{table}[t]
   \centering
-  \caption{Knowledge graph schema: 11 node labels, 16 edge types.}
+  \caption{Knowledge graph schema: 14 node labels, 21 edge types.}
   \label{tab:schema}
   \begin{tabular}{@{}lp{9cm}@{}}
     \toprule
-    \textbf{Node Labels} & Site, Location, Equipment, Sensor, FailureMode, WorkOrder, SparePart, Supplier, SensorReading, Anomaly, Event \\
+    \textbf{Node Labels} & Site, Location, Equipment, Sensor, FailureMode, WorkOrder, SparePart, Supplier, SensorReading, Anomaly, Event, MonitoringRule, PHMScenario, HFScenario \\
     \midrule
-    \textbf{Edge Types} & \textsc{contains\_location}, \textsc{contains\_equipment}, \textsc{has\_sensor}, \textsc{monitors}, \textsc{experienced}, \textsc{depends\_on}, \textsc{shares\_system\_with}, \textsc{for\_equipment}, \textsc{addresses}, \textsc{uses\_part}, \textsc{supplied\_by}, \textsc{produced\_reading}, \textsc{detected\_anomaly}, \textsc{triggered}, \textsc{follows\_plan} \\
+    \textbf{Edge Types} & \textsc{contains\_location}, \textsc{contains\_equipment}, \textsc{has\_sensor}, \textsc{monitors}, \textsc{experienced}, \textsc{depends\_on}, \textsc{shares\_system\_with}, \textsc{for\_equipment}, \textsc{addresses}, \textsc{uses\_part}, \textsc{supplied\_by}, \textsc{produced\_reading}, \textsc{detected\_anomaly}, \textsc{triggered}, \textsc{follows\_plan}, \textsc{has\_rule}, \textsc{has\_phm\_scenario}, \textsc{targets\_equipment}, \textsc{involves\_failure\_mode}, \textsc{tests\_rule} \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -365,6 +368,37 @@ The largest gains occur on \textbf{failure similarity} (+0.401) and \textbf{crit
 
 GPT-4o's 6 failures (scenarios requiring PageRank, BFS traversal, or vector similarity) demonstrate a hard capability boundary: no amount of prompt engineering enables an LLM to execute graph algorithms.
 
+\subsection{Expanded HuggingFace Benchmark: 467 Scenarios}
+\label{sec:hf-expanded}
+
+Following the release of an expanded AssetOpsBench dataset on HuggingFace (ibm-research/AssetOpsBench), we evaluate our knowledge graph approach against all 467 scenarios spanning six operational domains. This represents a 3.4$\times$ expansion over the original 139-scenario benchmark, adding monitoring rule evaluation, failure-mode-sensor recommendation across 10 equipment types (electric motor, pump, compressor, turbine, etc.), and prognostics tasks including remaining useful life prediction and fault classification.
+
+To support the expanded scenarios, we extend the knowledge graph with three new node types (MonitoringRule, PHMScenario, HFScenario) and five new edge types, and add three new deterministic handlers: (1)~a rule-logic handler that evaluates monitoring rules against sensor readings, (2)~an FMSR handler that maps failure modes to detectable sensors via graph traversal, and (3)~a PHM handler that provides asset health profiles from failure history and maintenance records.
+
+\begin{table}[t]
+  \centering
+  \caption{Expanded AssetOpsBench: 467 scenarios across 6 domains.}
+  \label{tab:hf-results}
+  \begin{tabular}{@{}lrrrr@{}}
+    \toprule
+    \textbf{Config} & \textbf{Scenarios} & \textbf{Pass Rate} & \textbf{Avg Score} \\
+    \midrule
+    scenarios (original)   & 152 & 152/152 (100\%) & 0.781 \\
+    rule\_logic            & 120 & 120/120 (100\%) & 0.949 \\
+    FMSR                   & 88  & 88/88 (100\%)   & 0.868 \\
+    compressor             & 15  & 15/15 (100\%)   & 0.877 \\
+    hydrolic\_pump         & 17  & 17/17 (100\%)   & 0.885 \\
+    PHM                    & 75  & 75/75 (100\%)   & 0.787 \\
+    \midrule
+    \textbf{Total}         & \textbf{467} & \textbf{467/467 (100\%)} & \textbf{0.848} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The rule-logic scenarios achieve the highest average score (0.949) because anomaly detection against threshold rules is a pure graph operation: the monitoring rules are stored as nodes with threshold properties, sensor readings are evaluated against these thresholds, and anomalies are detected deterministically. The PHM scenarios score lower (0.787) because prognostics tasks (RUL prediction, fault classification) require domain knowledge beyond what is stored in the graph---the graph provides asset context (failure history, MTBF, maintenance records) but the actual prediction requires analytical models.
+
+Critically, the 100\% pass rate on 467 scenarios demonstrates that the knowledge graph approach scales to the full benchmark without degradation. The expanded benchmark covers 26 equipment types across manufacturing, utilities, and transportation---a substantial increase over the original chiller-focused dataset.
+
 % ============================================================
 % 6. ANALYSIS
 % ============================================================
@@ -492,13 +526,13 @@ The cost asymmetry is particularly relevant for industrial operations: sensor ne
 % ============================================================
 \section{Conclusion}
 
-Building on the AssetOpsBench benchmark, we have shown that introducing a knowledge graph as the data layer improves LLM-based industrial operations at every level of LLM involvement: from 65\% (LLM over document stores) to 83\% (LLM generates queries over graph) to 99\% (deterministic graph handlers). For structured operational domains, the data model is the primary bottleneck.
+Building on the AssetOpsBench benchmark, we have shown that introducing a knowledge graph as the data layer improves LLM-based industrial operations at every level of LLM involvement: from 65\% (LLM over document stores) to 83\% (LLM generates queries over graph) to 99\% (deterministic graph handlers). For structured operational domains, the data model is the primary bottleneck. When evaluated against the expanded 467-scenario HuggingFace release spanning six operational domains, deterministic graph handlers achieve 100\% (467/467) with an average score of 0.848, demonstrating scalability beyond the original chiller-focused dataset.
 
 The inverted LLM pattern---asking the LLM to generate structured queries rather than reason over raw data---is generalizable beyond industrial operations. For any structured domain with a typed schema, \textbf{schema-aware query generation outperforms free-form data reasoning}. LLMs excel at code generation from specifications; graphs excel at data traversal, aggregation, and algorithms. Each system should do what it is good at.
 
 \paragraph{Contributions.} (1) A three-tier evaluation isolating the data model as the key variable on the 139-scenario AssetOpsBench benchmark. (2) The inverted LLM usage pattern, demonstrating +18pp improvement by constraining the LLM to query generation. (3) A complete ETL pipeline and knowledge graph schema for industrial asset operations. (4) 40 new graph-native scenarios extending the benchmark with multi-hop, vector, and algorithmic capabilities. (5) An honest analysis of limitations including the model mismatch caveat and clean-data assumption.
 
-\paragraph{Future work.} A same-model (GPT-4) NLQ comparison to isolate the graph's contribution from the model improvement; evaluation on larger industrial environments (10K+ assets, multi-site); integration of LLM-assisted data preparation for unstructured maintenance logs; and a hybrid architecture that uses deterministic handlers for known patterns and NLQ for novel queries.
+\paragraph{Future work.} A same-model (GPT-4) NLQ comparison to isolate the graph's contribution from the model improvement; evaluation on larger industrial environments (10K+ assets, multi-site); joint NeurIPS 2026 Datasets \& Benchmarks track submission with IBM Research; integration of LLM-assisted data preparation for unstructured maintenance logs; and a hybrid architecture that uses deterministic handlers for known patterns and NLQ for novel queries.
 
 \paragraph{Availability.} The benchmark code, ETL pipeline, and evaluation framework are available at \url{https://github.com/samyama-ai/assetops-kg}. The Samyama graph database is at \url{https://github.com/samyama-ai/samyama-graph}. The 40 new scenarios have been submitted to the AssetOpsBench repository as a community contribution.
 
