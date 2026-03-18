@@ -73,13 +73,13 @@
 % ABSTRACT
 % ============================================================
 \begin{abstract}
-Biomedical knowledge is fragmented across siloed databases---Reactome for pathways, STRING for protein interactions, Gene Ontology for functional annotations, ClinicalTrials.gov for study registries, and dozens more. Researchers routinely download flat files from each source and write bespoke scripts to cross-reference them, a process that is slow, error-prone, and not reproducible. We present two open-source biomedical knowledge graphs---\textbf{Pathways KG} (118,686 nodes, 834,785 edges from 5 sources) and \textbf{Clinical Trials KG} (7,774,446 nodes, 26,973,997 edges from 5 sources)---built on Samyama, a high-performance graph database written in Rust.
+Biomedical knowledge is fragmented across siloed databases---Reactome for pathways, STRING for protein interactions, Gene Ontology for functional annotations, ClinicalTrials.gov for study registries, DrugBank for drug vocabularies, DGIdb for drug--gene interactions, SIDER for side effects, and dozens more. Researchers routinely download flat files from each source and write bespoke scripts to cross-reference them, a process that is slow, error-prone, and not reproducible. We present three open-source biomedical knowledge graphs---\textbf{Pathways KG} (118,686 nodes, 834,785 edges from 5 sources), \textbf{Clinical Trials KG} (7,774,446 nodes, 26,973,997 edges from 5 sources), and \textbf{Drug Interactions KG} (32,726 nodes, 191,970 edges from 3 sources)---built on Samyama, a high-performance graph database written in Rust.
 
-Our contributions are threefold. First, we describe a \textbf{reproducible ETL pattern} for constructing large-scale KGs from heterogeneous public data sources, with cross-source deduplication, batch Cypher loading, and portable snapshot export. Second, we demonstrate \textbf{cross-KG federation}: loading both snapshots into a single graph tenant enables property-based joins across datasets, answering questions like ``Which biological pathways are disrupted by drugs currently in Phase~3 trials for breast cancer?''---a query that neither KG can answer alone. Third, we introduce \textbf{schema-driven MCP server generation}: each KG automatically exposes typed tools for LLM agents via the Model Context Protocol, enabling natural-language access to graph queries without manual tool authoring.
+Our contributions are threefold. First, we describe a \textbf{reproducible ETL pattern} for constructing large-scale KGs from heterogeneous public data sources, with cross-source deduplication, batch loading (both Python Cypher and Rust native loaders), and portable snapshot export. Second, we demonstrate \textbf{cross-KG federation}: loading all three snapshots into a single graph tenant enables property-based joins across datasets, answering questions like ``For drugs indicated for diabetes, what are their gene targets and which biological pathways do those targets participate in?''---a query that no single KG can answer alone. Third, we introduce \textbf{schema-driven MCP server generation}: each KG automatically exposes typed tools for LLM agents via the Model Context Protocol, enabling natural-language access to graph queries. We evaluate domain-specific MCP tools against text-to-Cypher and standalone GPT-4o on a new \textbf{BiomedQA benchmark} (40 pharmacology questions), achieving 98\% accuracy vs.\ 85\% for schema-aware text-to-Cypher and 75\% for standalone GPT-4o, with zero schema errors.
 
-All data sources are open-license (CC~BY~4.0, CC0, OBO). Snapshots, ETL code, and MCP configurations are publicly available. The combined federated graph (7.89M nodes, 27.8M edges) loads in 76 seconds on commodity hardware (Mac Mini M4, 16GB RAM), and the signature cross-KG query---``which pathways are disrupted by drugs in Phase~3 breast cancer trials?''---returns validated results in 2.1 seconds.
+All data sources are open-license (CC~BY~4.0, CC0, OBO, public domain). Snapshots, ETL code, and MCP configurations are publicly available. The combined federated graph (7.9M nodes, 28M edges) loads in approximately 3 minutes from portable snapshots on commodity cloud hardware (AWS g4dn.4xlarge, 62\,GB RAM), and cross-KG queries complete in 80\,ms--4\,s.
 
-\noindent\textbf{Keywords:} Knowledge Graphs, Biomedical Data Integration, Graph Databases, Cross-KG Federation, Model Context Protocol, Clinical Trials, Biological Pathways, OpenCypher.
+\noindent\textbf{Keywords:} Knowledge Graphs, Biomedical Data Integration, Graph Databases, Cross-KG Federation, Model Context Protocol, Clinical Trials, Biological Pathways, Drug Interactions, Pharmacogenomics, OpenCypher.
 \end{abstract}
 
 % ============================================================
@@ -96,14 +96,14 @@ However, constructing biomedical KGs at scale remains challenging. Prior efforts
 We address these limitations with three contributions:
 
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Reproducible KG construction.} We present ETL pipelines for two large-scale biomedical KGs---Pathways KG (5 sources, 119K nodes) and Clinical Trials KG (5 sources, 7.7M nodes)---built on Samyama Graph Database using a common pattern: download, parse, deduplicate, batch-load via Cypher, and export as portable \texttt{.sgsnap} snapshots.
+  \item \textbf{Reproducible KG construction.} We present ETL pipelines for three biomedical KGs---Pathways KG (5 sources, 119K nodes), Clinical Trials KG (5 sources, 7.7M nodes), and Drug Interactions KG (3 sources, 33K nodes)---built on Samyama Graph Database using a common pattern: download, parse, deduplicate, load (Python Cypher or Rust native), and export as portable \texttt{.sgsnap} snapshots. The Rust native loader creates the Drug Interactions KG (32K nodes, 192K edges) in under 1~second.
 
-  \item \textbf{Cross-KG federation.} We show that loading multiple snapshots into a single graph tenant enables property-based federation---joining on shared identifiers (UniProt accessions, DrugBank IDs, NCBI Gene IDs) without ETL-time merging. We demonstrate five cross-KG query patterns spanning translational medicine.
+  \item \textbf{Cross-KG federation.} We show that loading multiple snapshots into a single graph tenant enables property-based federation---joining on shared identifiers (UniProt accessions, DrugBank IDs, gene names) without ETL-time merging. We demonstrate cross-KG query patterns spanning molecular biology, translational medicine, and pharmacogenomics.
 
-  \item \textbf{Schema-driven AI agent access.} Each KG ships with a Model Context Protocol (MCP)~\citep{anthropic2024mcp} server configuration that auto-generates typed tools from the graph schema. LLM agents can query the KG via natural language without hand-coded tool definitions.
+  \item \textbf{Schema-driven AI agent access.} Each KG ships with a Model Context Protocol (MCP)~\citep{anthropic2024mcp} server configuration with domain-specific tools. We evaluate MCP tools against text-to-Cypher (GPT-4o) and standalone GPT-4o on a new BiomedQA benchmark: MCP tools achieve 98\% accuracy (39/40) vs.\ 85\% for schema-aware text-to-Cypher and 75\% for standalone GPT-4o, with zero schema errors.
 \end{enumerate}
 
-All code, snapshots, and MCP configurations are open-source\footnote{Pathways KG: \url{https://github.com/samyama-ai/pathways-kg}; Clinical Trials KG: \url{https://github.com/samyama-ai/clinicaltrials-kg}; Snapshots: \url{https://github.com/samyama-ai/samyama-graph/releases}}.
+All code, snapshots, and MCP configurations are open-source\footnote{Pathways KG: \url{https://github.com/samyama-ai/pathways-kg}; Clinical Trials KG: \url{https://github.com/samyama-ai/clinicaltrials-kg}; Drug Interactions KG: \url{https://github.com/samyama-ai/druginteractions-kg}; Snapshots: \url{https://github.com/samyama-ai/samyama-graph/releases}}.
 
 % ============================================================
 % 2. BACKGROUND AND RELATED WORK
@@ -137,7 +137,7 @@ Both KGs draw exclusively from open-license public databases. Table~\ref{tab:sou
 
 \begin{table}[H]
 \centering
-\caption{Data sources for the two biomedical KGs. All are open-license and human-specific (organism 9606 where applicable).}
+\caption{Data sources for the three biomedical KGs. All are open-license and human-specific (organism 9606 where applicable).}
 \label{tab:sources}
 \small
 \begin{tabular}{llllr}
@@ -155,6 +155,10 @@ Both KGs draw exclusively from open-license public databases. Table~\ref{tab:sou
 & RxNorm (NLM) & Drug normalization \& ATC codes & Free & API \\
 & OpenFDA & Adverse event reports (FAERS) & Public domain & API \\
 & PubMed (NLM) & Trial-linked publications & Free & API \\
+\midrule
+\multirow{3}{*}{Drug Int.} & DrugBank CC0 & Drug vocabulary (19K drugs) & CC0 & 3 MB \\
+& DGIdb & Drug--gene interactions (38K edges) & Open & 24 MB \\
+& SIDER & Side effects \& indications & CC-BY-SA & 22 MB \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -258,6 +262,45 @@ LabTest & loinc\_code & varies \\
 
 The ETL pipeline queries the ClinicalTrials.gov API v2 for study metadata, enriches conditions with MeSH hierarchy, normalizes drug names via RxNorm, links adverse events from OpenFDA's FAERS database, and associates publications from PubMed E-utilities.
 
+\subsection{Drug Interactions KG}
+
+The Drug Interactions KG models drug--gene interactions, side effects, and indications with 4 node labels and 3 edge types (Table~\ref{tab:drug-schema}).
+
+\begin{table}[H]
+\centering
+\caption{Drug Interactions KG schema.}
+\label{tab:drug-schema}
+\small
+\begin{tabular}{llr}
+\toprule
+\textbf{Node Label} & \textbf{Key Property} & \textbf{Count} \\
+\midrule
+Drug & drugbank\_id & 19,842 \\
+Gene & gene\_name & 4,182 \\
+SideEffect & meddra\_id & 5,858 \\
+Indication & meddra\_id & 2,844 \\
+\midrule
+\multicolumn{2}{l}{\textbf{Total nodes}} & \textbf{32,726} \\
+\bottomrule
+\end{tabular}
+\quad
+\begin{tabular}{lr}
+\toprule
+\textbf{Edge Type} & \textbf{Count} \\
+\midrule
+INTERACTS\_WITH\_GENE & 38,033 \\
+HAS\_SIDE\_EFFECT & 139,193 \\
+HAS\_INDICATION & 14,744 \\
+\midrule
+\textbf{Total edges} & \textbf{191,970} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The ETL consists of two phases. \textbf{Phase~1 (DrugBank + DGIdb)}: 19,842 Drug nodes are created from DrugBank CC0 vocabulary CSV, with all synonyms indexed for cross-source name matching (52,154 synonyms). DGIdb interactions yield 4,182 Gene nodes and 38,033 INTERACTS\_WITH\_GENE edges with interaction types (inhibitor, activator, etc.). \textbf{Phase~2 (SIDER)}: STITCH compound IDs are mapped to DrugBank names via synonym lookup, yielding 5,858 SideEffect nodes with 139,193 HAS\_SIDE\_EFFECT edges and 2,844 Indication nodes with 14,744 HAS\_INDICATION edges.
+
+A Rust native loader (\texttt{druginteractions\_loader.rs}) performs the full ETL in 928\,ms using direct GraphStore API calls (no Cypher parsing), compared to ${\sim}$50 minutes via the Python HTTP loader.
+
 % ============================================================
 % 5. CROSS-KG FEDERATION
 % ============================================================
@@ -265,30 +308,31 @@ The ETL pipeline queries the ClinicalTrials.gov API v2 for study metadata, enric
 
 \subsection{Motivation}
 
-The Pathways KG knows molecular biology---which proteins interact, what pathways they participate in. The Clinical Trials KG knows translational medicine---which drugs are in trials, what conditions they treat. Neither alone can answer:
+The Pathways KG knows molecular biology---which proteins interact, what pathways they participate in. The Clinical Trials KG knows translational medicine---which drugs are in trials, what conditions they treat. The Drug Interactions KG knows pharmacology---which genes a drug targets, what side effects it causes. No single KG can answer:
 
 \begin{quote}
-\emph{``Which biological pathways are disrupted by drugs currently in Phase~3 trials for breast cancer?''}
+\emph{``For drugs indicated for diabetes, what are their gene targets and which biological pathways do those targets participate in?''}
 \end{quote}
 
 This query requires traversing: \texttt{ClinicalTrial} $\xrightarrow{\text{STUDIES}}$ \texttt{Condition} (breast cancer) $\leftarrow$ \texttt{ClinicalTrial} $\xrightarrow{\text{TESTS}}$ \texttt{Intervention} $\xrightarrow{\text{CODED\_AS\_DRUG}}$ \texttt{Drug} $\xrightarrow{\text{TARGETS}}$ \texttt{Protein} $\xrightarrow{\text{PARTICIPATES\_IN}}$ \texttt{Pathway}. The first three hops are in the Clinical Trials KG; the last two are in the Pathways KG. The \texttt{Drug}$\rightarrow$\texttt{Protein} edge is the bridge.
 
 \subsection{Join Points}
 
-Three entity types appear in both KGs with matching identifiers:
+Shared entity types with matching identifiers enable cross-KG joins:
 
 \begin{table}[H]
 \centering
-\caption{Cross-KG join points.}
+\caption{Cross-KG join points across the three biomedical KGs.}
 \label{tab:joins}
 \small
-\begin{tabular}{llll}
+\begin{tabular}{lllll}
 \toprule
-\textbf{Entity} & \textbf{Pathways Property} & \textbf{Clinical Trials Property} & \textbf{Identifier} \\
+\textbf{Entity} & \textbf{From KG} & \textbf{To KG} & \textbf{Join Property} & \textbf{Identifier} \\
 \midrule
-Protein & \texttt{Protein.uniprot\_id} & \texttt{Protein.uniprot\_id} & UniProt accession \\
-Drug & \texttt{Drug.drugbank\_id} & \texttt{Drug.drugbank\_id} & DrugBank ID \\
-Gene & \texttt{Gene.gene\_id} & \texttt{Gene.gene\_id} & NCBI Gene ID \\
+Gene/Protein & Drug Int. & Pathways & \texttt{gene\_name = name} & Gene symbol \\
+Drug & Drug Int. & Clin. Trials & \texttt{name = Intervention.name} & Drug name \\
+Drug & Drug Int. & Clin. Trials & \texttt{drugbank\_id} & DrugBank ID \\
+Protein & Clin. Trials & Pathways & \texttt{uniprot\_id} & UniProt accession \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -380,29 +424,29 @@ An LLM agent connected to this MCP server can answer ``What pathways does TP53 p
 % ============================================================
 \section{Evaluation}
 
-We evaluate construction time, query performance, and federation correctness on a Mac Mini M4 (Apple M4, 10 cores, 16GB RAM).
+We evaluate construction time, query performance, and AI agent access on an AWS \texttt{g4dn.4xlarge} instance (16~vCPU AMD EPYC, 62~GB RAM, NVIDIA A10G GPU).
 
 \subsection{Construction Performance}
 
 \begin{table}[H]
 \centering
-\caption{KG construction performance.}
+\caption{KG construction performance (snapshot import on AWS g4dn.4xlarge).}
 \label{tab:construction}
 \small
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrrrr}
 \toprule
-\textbf{KG} & \textbf{Nodes} & \textbf{Edges} & \textbf{Snapshot Size} & \textbf{Import Time} \\
+\textbf{KG} & \textbf{Nodes} & \textbf{Edges} & \textbf{Snapshot} & \textbf{Import} & \textbf{Rust ETL} \\
 \midrule
-Pathways KG & 118,686 & 834,785 & 9 MB & 1 s \\
-Clinical Trials KG & 7,774,446 & 26,973,997 & 711 MB & 72 s \\
-Drug enrichment (32 drugs) & +33 & +235 & --- & 3 s \\
+Pathways KG & 118,686 & 834,785 & 9 MB & 3.4 s & --- \\
+Drug Interactions KG & 32,726 & 191,970 & 1.9 MB & 0.7 s & 0.9 s \\
+Clinical Trials KG & 7,774,446 & 26,973,997 & 711 MB & 177 s & --- \\
 \midrule
-\textbf{Combined} & \textbf{7,893,165} & \textbf{27,809,017} & \textbf{720 MB} & \textbf{76 s} \\
+\textbf{Combined} & \textbf{7,925,858} & \textbf{28,000,752} & \textbf{722 MB} & \textbf{181 s} & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Snapshot import uses gzip-compressed JSON-lines format. The Pathways KG loads in 1 second; the Clinical Trials KG, with its 7.8M nodes, loads in 72 seconds. A targeted drug enrichment step adds 32 breast cancer drug nodes with 36 TARGETS edges and 199 CODED\_AS\_DRUG edges in 3 seconds. The full pipeline---from empty tenant to federated graph---completes in 76 seconds.
+Snapshot import uses gzip-compressed JSON-lines format. The Pathways KG loads in 3.6~seconds; the Drug Interactions KG in 0.7~seconds; and the Clinical Trials KG, with its 7.8M nodes, loads in 174~seconds. The Drug Interactions KG also has a Rust native loader that constructs the full graph from source files (DrugBank CSV, DGIdb TSV, SIDER TSV) in 928\,ms---orders of magnitude faster than the Python HTTP-based ETL. The combined federated graph (7.9M nodes, 28M edges) uses 33~GB RAM (53\% of 62~GB available on the AWS instance).
 
 \subsection{Query Performance}
 
@@ -410,25 +454,49 @@ We benchmark representative queries from each KG and the federated graph:
 
 \begin{table}[H]
 \centering
-\caption{Query latency on Mac Mini M4.}
+\caption{Query latency on AWS g4dn.4xlarge (7.9M nodes loaded).}
 \label{tab:queries}
 \small
 \begin{tabular}{p{5cm}lrr}
 \toprule
 \textbf{Query} & \textbf{KG} & \textbf{Results} & \textbf{Latency} \\
 \midrule
-Label distribution (15 labels) & Combined & 15 rows & 7.8 s \\
-Proteins with uniprot\_id & Combined & 1 row & 0.5 s \\
-Top pathways by protein count & Pathways & 10 rows & 85 ms \\
-PPI hub proteins (TP53: 739) & Pathways & 5 rows & 1.4 s \\
-Breast cancer trial count & Clinical & 5 rows & 1.2 s \\
+Drug gene targets (Metformin) & Drug Int. & 5 rows & 83 ms \\
+Shared gene targets (2 drugs) & Drug Int. & 1 row & 84 ms \\
+Top pathways by protein count & Pathways & 10 rows & 97 ms \\
+PPI partners (TP53: Q9UQ61) & Pathways & 10 rows & 96 ms \\
+Side effects of Warfarin & Drug Int. & 10 rows & 82 ms \\
 \midrule
-\textbf{Drug $\rightarrow$ Pathway (6-hop)} & \textbf{Combined} & \textbf{10 rows} & \textbf{2.1 s} \\
+Drugs for diabetes $\rightarrow$ gene targets & Drug+Path & 10 rows & 3.6 s \\
+EGFR drugs $\rightarrow$ side effects & Drug Int. & 10 rows & 3.7 s \\
+\textbf{Cross-KG: PTGS1 drugs + side effects} & \textbf{All 3} & \textbf{10 rows} & \textbf{3.7 s} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The signature federated query---``pathways disrupted by breast cancer trial drugs''---traverses 6 hops across both KGs and returns in 2.1 seconds. Label distribution over the full 7.9M-node graph takes 7.8 seconds (full scan). Individual KG queries execute in under 1.5 seconds.
+Simple single-KG queries (drug lookups, gene targets, side effects) complete in 80--100\,ms. Multi-hop cross-KG joins (e.g., ``drugs targeting PTGS1 and their most common side effects'') complete in 3--4\,s on the full 7.9M-node graph.
+
+\subsection{BiomedQA Benchmark}
+
+We introduce BiomedQA, a benchmark of 40 pharmacology questions across 7 categories over the three federated KGs. We compare three approaches: domain-specific MCP tools (parameterized Cypher templates), text-to-Cypher via the schema-aware NLQ endpoint (GPT-4o with full schema system prompt and few-shot examples), and standalone GPT-4o (no database access). The BiomedQA benchmark is open-source.\footnote{\url{https://github.com/samyama-ai/biomedqa}}
+
+\begin{table}[H]
+\centering
+\caption{BiomedQA results (40 questions, 7.9M nodes, 3 federated KGs).}
+\label{tab:biomedqa}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Approach} & \textbf{Accuracy} & \textbf{Avg Latency} & \textbf{Avg Tokens} \\
+\midrule
+GPT-4o standalone & 30/40 (75\%) & 2,805\,ms & 195 \\
+Text-to-Cypher (NLQ) & 34/40 (85\%) & 1,846\,ms & 0$^{\dagger}$ \\
+\textbf{MCP tools} & \textbf{39/40 (98\%)} & \textbf{920\,ms} & \textbf{0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Text-to-Cypher achieves 85\% with a schema-aware NLQ pipeline (full schema in system prompt, few-shot examples). Its 6 failures are: 3 schema hallucinations (non-existent edge traversals), 1 exact-vs-CONTAINS mismatch, 1 inline property variable, and 1 correct empty result. MCP tools eliminate schema errors entirely. ($^{\dagger}$Token count is 0 because the NLQ endpoint handles the LLM call server-side.)
 
 \subsection{Federation Correctness}
 
@@ -489,18 +557,21 @@ The pattern is not limited to biomedicine. Any domain with shared identifiers ac
 % ============================================================
 \section{Conclusion}
 
-We presented two open-source biomedical knowledge graphs---Pathways KG and Clinical Trials KG---built on Samyama Graph Database. Together they contain 7.89 million nodes and 27.8 million edges from 10 public data sources. We demonstrated that loading both snapshots into a single graph tenant, combined with a targeted drug-target enrichment step (32 drugs, 36 TARGETS edges), enables cross-KG federated queries that bridge molecular biology and translational medicine. The 6-hop query ``pathways disrupted by Phase~3 breast cancer drugs'' returns biologically validated results---Signal Transduction, Immune System, Cell Cycle---in 2.1 seconds on commodity hardware. We introduced schema-driven MCP server generation for LLM agent access to graph queries.
+We presented three open-source biomedical knowledge graphs---Pathways KG (119K nodes from 5 sources), Clinical Trials KG (7.7M nodes from 5 sources), and Drug Interactions KG (33K nodes from 3 sources)---built on Samyama Graph Database. Together they contain 7.9 million nodes and 28 million edges from 13 public data sources. Loading all three snapshots into a single graph tenant enables cross-KG federated queries that bridge molecular biology, translational medicine, and pharmacogenomics. Cross-KG queries complete in 80\,ms--4\,s on commodity hardware (62~GB RAM). A Rust native loader constructs the Drug Interactions KG in under 1~second.
 
-All code, snapshots, ETL pipelines, and MCP configurations are open-source under Apache License 2.0. Researchers can reproduce the federation---from snapshot import to cross-KG queries---in under 2 minutes on commodity hardware.
+We introduced domain-specific MCP tools for LLM agent access and evaluated them on a new BiomedQA benchmark (40 pharmacology questions): MCP tools achieve 98\% accuracy vs.\ 85\% for schema-aware text-to-Cypher and 75\% for standalone GPT-4o---with zero schema errors, demonstrating that for domain-specific data access, the LLM's role should be tool selection and argument extraction, not query generation.
+
+All code, snapshots, ETL pipelines, benchmarks, and MCP configurations are open-source. Researchers can reproduce the full 3-KG federation---from snapshot import to cross-KG queries---in under 3 minutes.
 
 \subsection*{Data and Code Availability}
 
 \begin{itemize}[leftmargin=*]
   \item Pathways KG: \url{https://github.com/samyama-ai/pathways-kg}
   \item Clinical Trials KG: \url{https://github.com/samyama-ai/clinicaltrials-kg}
+  \item Drug Interactions KG: \url{https://github.com/samyama-ai/druginteractions-kg}
+  \item BiomedQA Benchmark: \url{https://github.com/samyama-ai/biomedqa}
   \item Samyama Graph Database: \url{https://github.com/samyama-ai/samyama-graph}
   \item Snapshots: \url{https://github.com/samyama-ai/samyama-graph/releases}
-  \item Samyama Graph Book: \url{https://samyama-ai.github.io/samyama-graph-book/}
 \end{itemize}
 
 % ============================================================
