@@ -77,7 +77,7 @@ Biomedical knowledge is fragmented across siloed databases---Reactome for pathwa
 
 Our contributions are threefold. First, we describe a \textbf{reproducible ETL pattern} for constructing large-scale KGs from heterogeneous public data sources, with cross-source deduplication, batch loading (both Python Cypher and Rust native loaders), and portable snapshot export. Second, we demonstrate \textbf{cross-KG federation}: loading all three snapshots into a single graph tenant enables property-based joins across datasets, answering questions like ``For drugs indicated for diabetes, what are their gene targets and which biological pathways do those targets participate in?''---a query that no single KG can answer alone. Third, we introduce \textbf{schema-driven MCP server generation}: each KG automatically exposes typed tools for LLM agents via the Model Context Protocol, enabling natural-language access to graph queries. We evaluate domain-specific MCP tools against text-to-Cypher and standalone GPT-4o on a new \textbf{BiomedQA benchmark} (40 pharmacology questions), achieving 98\% accuracy vs.\ 85\% for schema-aware text-to-Cypher and 75\% for standalone GPT-4o, with zero schema errors.
 
-All data sources are open-license (CC~BY~4.0, CC0, OBO, public domain). Snapshots, ETL code, and MCP configurations are publicly available. The combined federated graph (7.9M nodes, 28M edges) loads in approximately 3 minutes from portable snapshots on commodity cloud hardware (AWS g4dn.4xlarge, 62\,GB RAM), and cross-KG queries complete in 80\,ms--4\,s.
+All data sources are open-license (CC~BY~4.0, CC0, OBO, public domain). Snapshots, ETL code, and MCP configurations are publicly available. The combined federated graph (7.9M nodes, 28M edges) loads in approximately 3 minutes from portable snapshots on commodity cloud hardware (62\,GB RAM), with single-KG queries completing in 80--100\,ms and cross-KG federation joins in 1--4\,s.
 
 \noindent\textbf{Keywords:} Knowledge Graphs, Biomedical Data Integration, Graph Databases, Cross-KG Federation, Model Context Protocol, Clinical Trials, Biological Pathways, Drug Interactions, Pharmacogenomics, OpenCypher.
 \end{abstract}
@@ -471,9 +471,9 @@ Top pathways by protein count & Pathways & 10 rows & 97 ms \\
 PPI partners (TP53: Q9UQ61) & Pathways & 10 rows & 96 ms \\
 Side effects of Warfarin & Drug Int. & 10 rows & 82 ms \\
 \midrule
-Drugs for diabetes $\rightarrow$ gene targets & Drug+Path & 10 rows & 3.6 s \\
-EGFR drugs $\rightarrow$ side effects & Drug Int. & 10 rows & 3.7 s \\
-\textbf{Cross-KG: PTGS1 drugs + side effects} & \textbf{All 3} & \textbf{10 rows} & \textbf{3.7 s} \\
+Diabetes drugs $\rightarrow$ pathways & Drug Int.+Path & 5 rows & 3.9 s \\
+Warfarin $\rightarrow$ trial conditions & Drug Int.+CT & 5 rows & 5.8 s \\
+\textbf{PTGS1 drugs $\rightarrow$ side effects} & \textbf{Drug Int.} & \textbf{10 rows} & \textbf{3.7 s} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -561,7 +561,7 @@ The pattern is not limited to biomedicine. Any domain with shared identifiers ac
 % ============================================================
 \section{Conclusion}
 
-We presented three open-source biomedical knowledge graphs---Pathways KG (119K nodes from 5 sources), Clinical Trials KG (7.7M nodes from 5 sources), and Drug Interactions KG (33K nodes from 3 sources)---built on Samyama Graph Database. Together they contain 7.9 million nodes and 28 million edges from 13 public data sources. Loading all three snapshots into a single graph tenant enables cross-KG federated queries that bridge molecular biology, translational medicine, and pharmacogenomics. Cross-KG queries complete in 80\,ms--4\,s on commodity hardware (62~GB RAM). A Rust native loader constructs the Drug Interactions KG in under 1~second.
+We presented three open-source biomedical knowledge graphs---Pathways KG (119K nodes from 5 sources), Clinical Trials KG (7.7M nodes from 5 sources), and Drug Interactions KG (33K nodes from 3 sources)---built on Samyama Graph Database. Together they contain 7.9 million nodes and 28 million edges from 13 public data sources. Loading all three snapshots into a single graph tenant enables cross-KG federated queries that bridge molecular biology, translational medicine, and pharmacogenomics. Single-KG queries complete in 80--100\,ms; cross-KG federation joins in 1--4\,s on commodity cloud hardware (62~GB RAM). A Rust native loader constructs the Drug Interactions KG in under 1~second.
 
 We introduced domain-specific MCP tools for LLM agent access and evaluated them on a new BiomedQA benchmark (40 pharmacology questions): MCP tools achieve 98\% accuracy vs.\ 85\% for schema-aware text-to-Cypher and 75\% for standalone GPT-4o---with zero schema errors, demonstrating that for domain-specific data access, the LLM's role should be tool selection and argument extraction, not query generation.
 
