@@ -133,7 +133,7 @@ MCP~\citep{anthropic2024mcp} is an open standard for connecting LLM agents to ex
 % ============================================================
 \section{Data Sources}
 
-Both KGs draw exclusively from open-license public databases. Table~\ref{tab:sources} summarizes the sources.
+All three KGs draw exclusively from open-license public databases. Table~\ref{tab:sources} summarizes the sources.
 
 \begin{table}[H]
 \centering
@@ -170,7 +170,7 @@ Both KGs draw exclusively from open-license public databases. Table~\ref{tab:sou
 
 \subsection{ETL Pattern}
 
-Both KGs follow a common five-phase pattern:
+All three KGs follow a common five-phase pattern:
 
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Download.} A data downloader with resume support fetches all source files. Compressed files are decompressed automatically.
@@ -314,7 +314,7 @@ The Pathways KG knows molecular biology---which proteins interact, what pathways
 \emph{``For drugs indicated for diabetes, what are their gene targets and which biological pathways do those targets participate in?''}
 \end{quote}
 
-This query requires traversing: \texttt{ClinicalTrial} $\xrightarrow{\text{STUDIES}}$ \texttt{Condition} (breast cancer) $\leftarrow$ \texttt{ClinicalTrial} $\xrightarrow{\text{TESTS}}$ \texttt{Intervention} $\xrightarrow{\text{CODED\_AS\_DRUG}}$ \texttt{Drug} $\xrightarrow{\text{TARGETS}}$ \texttt{Protein} $\xrightarrow{\text{PARTICIPATES\_IN}}$ \texttt{Pathway}. The first three hops are in the Clinical Trials KG; the last two are in the Pathways KG. The \texttt{Drug}$\rightarrow$\texttt{Protein} edge is the bridge.
+This query requires traversing three KGs: \texttt{Drug} $\xrightarrow{\text{HAS\_INDICATION}}$ \texttt{Indication} (Drug Interactions KG), \texttt{Drug} $\xrightarrow{\text{INTERACTS\_WITH\_GENE}}$ \texttt{Gene} $\xrightarrow{\text{bridge: gene\_name = name}}$ \texttt{Protein} $\xrightarrow{\text{PARTICIPATES\_IN}}$ \texttt{Pathway} (Pathways KG). The \texttt{WHERE p.name = g.gene\_name} clause bridges Drug Interactions to Pathways.
 
 \subsection{Join Points}
 
@@ -342,22 +342,26 @@ Protein & Clin. Trials & Pathways & \texttt{uniprot\_id} & UniProt accession \\
 Samyama supports loading multiple snapshots into a single tenant. Each snapshot import appends nodes and edges to the existing graph. Since imports create new node IDs, entities from different snapshots with the same identifier (e.g., UniProt P04637 for TP53) exist as separate graph nodes. Cross-KG queries use \textbf{property-based joins}:
 
 \begin{lstlisting}
--- Pathways disrupted by Phase 3 breast cancer drugs
-MATCH (ct:ClinicalTrial)-[:STUDIES]->(cond:Condition)
-WHERE ct.phase = 'Phase 3' AND cond.name CONTAINS 'Breast'
-WITH ct
-MATCH (ct)-[:TESTS]->(int:Intervention)
-      -[:CODED_AS_DRUG]->(drug:Drug)
-WITH DISTINCT drug
-MATCH (drug)-[:TARGETS]->(prot1:Protein)
-MATCH (prot2:Protein)-[:PARTICIPATES_IN]->(pw:Pathway)
-WHERE prot1.uniprot_id = prot2.uniprot_id
-RETURN pw.name AS pathway,
-       count(DISTINCT drug.name) AS drugs_targeting
-ORDER BY drugs_targeting DESC LIMIT 15
+-- Drug targets -> biological pathways (Drug Interactions -> Pathways)
+MATCH (d:Drug {name: 'Metformin'})-[:INTERACTS_WITH_GENE]->(g:Gene)
+MATCH (p:Protein)-[:PARTICIPATES_IN]->(pw:Pathway)
+WHERE p.name = g.gene_name
+RETURN g.gene_name, pw.name LIMIT 10
+
+-- Drug -> clinical trials testing it (Drug Interactions -> Clinical Trials)
+MATCH (d:Drug {name: 'Warfarin'})
+MATCH (i:Intervention)<-[:TESTS]-(ct:ClinicalTrial)
+WHERE i.name = d.name
+RETURN ct.nct_id, ct.phase LIMIT 10
+
+-- Breast cancer trial landscape (Clinical Trials only)
+MATCH (ct:ClinicalTrial)-[:STUDIES]->(c:Condition)
+WHERE c.name CONTAINS 'Breast'
+RETURN c.name, count(ct) AS trials
+ORDER BY trials DESC LIMIT 5
 \end{lstlisting}
 
-The \texttt{WHERE prot1.uniprot\_id = prot2.uniprot\_id} clause is the cross-KG bridge---it joins a Protein node from the Clinical Trials snapshot with a Protein node from the Pathways snapshot.
+The \texttt{WHERE p.name = g.gene\_name} clause is the Drug Interactions $\to$ Pathways bridge---it joins a Gene node from the Drug Interactions KG with a Protein node from the Pathways KG using gene symbol as the shared identifier. The \texttt{WHERE i.name = d.name} clause bridges Drug Interactions $\to$ Clinical Trials via drug name.
 
 \subsection{Federation Query Patterns}
 
@@ -368,15 +372,15 @@ We identify five cross-KG query patterns of increasing complexity:
 \caption{Cross-KG federation query patterns.}
 \label{tab:patterns}
 \small
-\begin{tabular}{p{3.5cm}p{4cm}p{4cm}}
+\begin{tabular}{p{3.5cm}p{3.5cm}p{2cm}p{2.5cm}}
 \toprule
-\textbf{Pattern} & \textbf{Clinical Trials $\rightarrow$} & \textbf{$\rightarrow$ Pathways} \\
+\textbf{Pattern} & \textbf{From KG} & \textbf{Bridge} & \textbf{To KG} \\
 \midrule
-Drug $\rightarrow$ Pathway & Trial $\rightarrow$ Drug (via intervention) & Drug target $\rightarrow$ Protein $\rightarrow$ Pathway \\
-Drug $\rightarrow$ GO Process & Trial $\rightarrow$ Drug & Drug target $\rightarrow$ Protein $\rightarrow$ GOTerm \\
-Drug $\rightarrow$ PPI Network & Trial $\rightarrow$ Drug $\rightarrow$ Protein target & Target $\rightarrow$ INTERACTS\_WITH neighbors \\
-Disease $\rightarrow$ Pathway & Gene $\rightarrow$ Disease association & Gene $\rightarrow$ Protein $\rightarrow$ Pathway \\
-Adverse Event $\rightarrow$ Pathway & Trial $\rightarrow$ AdverseEvent $\rightarrow$ Drug & Drug $\rightarrow$ Protein $\rightarrow$ Pathway \\
+Drug $\rightarrow$ Pathway & Drug Int. (Gene) & gene\_name & Pathways (Protein) \\
+Drug $\rightarrow$ Trial & Drug Int. (Drug) & name & Clin. Trials (Intervention) \\
+Drug $\rightarrow$ GO terms & Drug Int. (Gene) & gene\_name & Pathways (GOTerm) \\
+Drug SE $\rightarrow$ Pathway & Drug Int. (SE+Gene) & gene\_name & Pathways (Protein) \\
+Trial $\rightarrow$ Side effects & Clin. Trials (Intervention) & name & Drug Int. (Drug) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -394,7 +398,7 @@ Each KG ships with a YAML configuration that defines domain-specific MCP tools. 
   \item \textbf{Registers domain tools} from the YAML configuration---each tool is a parameterized Cypher template with typed inputs (e.g., \texttt{protein\_name: string}, \texttt{confidence\_threshold: int}).
 \end{enumerate}
 
-The Pathways KG MCP server exposes 12 domain-specific tools (Table~\ref{tab:mcp}).
+Each KG's MCP server exposes domain-specific tools. The Pathways KG has 12 tools (Table~\ref{tab:mcp}), the Drug Interactions KG has 12 tools (e.g., \texttt{drug\_interactions}, \texttt{interaction\_checker}, \texttt{polypharmacy\_risk}, \texttt{drug\_side\_effects}), and the Clinical Trials KG has 15 tools.
 
 \begin{table}[H]
 \centering
@@ -446,7 +450,7 @@ Clinical Trials KG & 7,774,446 & 26,973,997 & 711 MB & 177 s & --- \\
 \end{tabular}
 \end{table}
 
-Snapshot import uses gzip-compressed JSON-lines format. The Pathways KG loads in 3.6~seconds; the Drug Interactions KG in 0.7~seconds; and the Clinical Trials KG, with its 7.8M nodes, loads in 174~seconds. The Drug Interactions KG also has a Rust native loader that constructs the full graph from source files (DrugBank CSV, DGIdb TSV, SIDER TSV) in 928\,ms---orders of magnitude faster than the Python HTTP-based ETL. The combined federated graph (7.9M nodes, 28M edges) uses 33~GB RAM (53\% of 62~GB available on the AWS instance).
+Snapshot import uses gzip-compressed JSON-lines format. The Pathways KG loads in 3.4~seconds; the Drug Interactions KG in 0.7~seconds; and the Clinical Trials KG, with its 7.8M nodes, loads in 177~seconds. The Drug Interactions KG also has a Rust native loader that constructs the full graph from source files (DrugBank CSV, DGIdb TSV, SIDER TSV) in 928\,ms---orders of magnitude faster than the Python HTTP-based ETL. The combined federated graph (7.9M nodes, 28M edges) uses 33~GB RAM (53\% of 62~GB available on the AWS instance).
 
 \subsection{Query Performance}
 
@@ -500,12 +504,12 @@ Text-to-Cypher achieves 85\% with a schema-aware NLQ pipeline (full schema in sy
 
 \subsection{Federation Correctness}
 
-We validated cross-KG federation on the Mac Mini M4 with the following results:
+We validated cross-KG federation on the AWS g4dn.4xlarge with all three KGs loaded (7.9M nodes):
 
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Bridge construction}: 32 breast cancer drug nodes were created from a curated DrugBank mapping, yielding 36 TARGETS edges (Drug $\rightarrow$ Protein) and 199 CODED\_AS\_DRUG edges (Intervention $\rightarrow$ Drug). The 1,544 matched drug interventions span 5,338 distinct drug names in breast cancer trials.
-  \item \textbf{Join overlap}: 37,990 Protein nodes with \texttt{uniprot\_id} from the Pathways KG are available for joining. Of the 36 drug-target proteins, all are present in the Pathways KG's protein-protein interaction network.
-  \item \textbf{Federation query result}: The 6-hop query ``pathways disrupted by breast cancer trial drugs'' returns 10 pathways, with \emph{Disease} (21 drugs), \emph{Signal Transduction} (19 drugs), \emph{Immune System} (12 drugs), and \emph{Cell Cycle} (12 drugs) as the top results. These align with known breast cancer biology: HER2 signaling (Trastuzumab), CDK4/6 cell cycle control (Palbociclib, Ribociclib), and immune checkpoint blockade (Pembrolizumab, Atezolizumab).
+  \item \textbf{Drug Interactions $\to$ Pathways bridge}: The query ``Metformin gene targets $\to$ biological pathways'' uses \texttt{WHERE p.name = g.gene\_name} to bridge Gene nodes from DGIdb to Protein nodes from Reactome/STRING. Returns pathway memberships (e.g., HNF1B $\to$ Developmental Biology) in 3.0\,s.
+  \item \textbf{Drug Interactions $\to$ Clinical Trials bridge}: The query ``clinical trials testing Warfarin'' uses \texttt{WHERE i.name = d.name} to bridge Drug nodes to Intervention nodes. Returns trial NCT IDs and phases (e.g., NCT00835861, PHASE2) in 0.6\,s.
+  \item \textbf{Three-KG chain}: The query ``drugs indicated for diabetes $\to$ gene targets $\to$ pathways'' traverses Drug $\to$ Indication (Drug Int.~KG) $\to$ Gene (Drug Int.~KG) $\to$ Protein $\to$ Pathway (Pathways KG), returning pathways such as Circadian clock and Dissolution of Fibrin Clot via SERPINE1, in 3.9\,s.
 \end{enumerate}
 
 % ============================================================
@@ -544,8 +548,8 @@ For production workloads, a post-load \texttt{MERGE} pass or ETL-time deduplicat
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Snapshot currency}: Snapshots are point-in-time exports. Source databases (especially ClinicalTrials.gov) update continuously. Periodic re-export is required.
   \item \textbf{Identifier coverage}: Not all proteins in the Clinical Trials KG have UniProt IDs (some have only gene symbols). The join overlap depends on identifier normalization quality.
-  \item \textbf{Memory requirements}: The combined 7.8M-node graph requires approximately 8GB RAM. Machines with less memory can load the Pathways KG alone (119K nodes, $<$500MB).
-  \item \textbf{No cross-tenant queries}: Currently, federation requires loading both snapshots into a single tenant. Native cross-tenant query support is planned for a future Samyama release.
+  \item \textbf{Memory requirements}: The combined 7.9M-node graph requires approximately 33\,GB RAM. Machines with less memory can load the Pathways + Drug Interactions KGs alone (151K nodes, $<$1\,GB).
+  \item \textbf{No cross-tenant queries}: Currently, federation requires loading all snapshots into a single tenant. Native cross-tenant query support is planned for a future Samyama release.
 \end{enumerate}
 
 \subsection{Generalizability}
