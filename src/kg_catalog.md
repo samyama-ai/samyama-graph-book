@@ -8,33 +8,59 @@ Samyama ships with pre-built knowledge graphs spanning sports, biomedicine, and 
 
 ```mermaid
 graph TB
-    subgraph "Sports"
-        CKG["🏏 Cricket KG<br/>36K nodes · 1.4M edges"]
-    end
-
-    subgraph "Biomedical"
+    subgraph "Biomedical Trifecta"
         PKG["🧬 Pathways KG<br/>119K nodes · 835K edges"]
         CTKG["💊 Clinical Trials KG<br/>7.7M nodes · 27M edges"]
+        DIKG["💉 Drug Interactions KG<br/>33K nodes · 192K edges"]
+    end
+
+    subgraph "Public Health Trifecta (planned)"
+        DSKG["🦠 Disease Surveillance KG<br/>~500K nodes (in progress)"]
+        HDKG["📊 Health Determinants KG<br/>~1M nodes (planned)"]
+        HSKG["🏥 Health Systems KG<br/>~500K nodes (planned)"]
+    end
+
+    subgraph "Sports"
+        CKG["🏏 Cricket KG<br/>36K nodes · 1.4M edges"]
     end
 
     subgraph "Industrial"
         AOKG["🏭 AssetOps KG<br/>781 nodes · 955 edges"]
     end
 
-    PKG -.->|"Protein · Drug · Gene"| CTKG
+    PKG -.->|"Gene · Protein"| DIKG
+    DIKG -.->|"Drug · Intervention"| CTKG
+    DSKG -.->|"Disease · Condition"| CTKG
+    DSKG -.->|"Drug · AMR"| DIKG
+    DSKG -.->|"Region"| HDKG
+    DSKG -.->|"Region"| HSKG
 
     style CKG fill:#3b82f6,stroke:#333,color:#fff
     style PKG fill:#10b981,stroke:#333,color:#fff
     style CTKG fill:#8b5cf6,stroke:#333,color:#fff
+    style DIKG fill:#ec4899,stroke:#333,color:#fff
     style AOKG fill:#f59e0b,stroke:#333,color:#fff
+    style DSKG fill:#06b6d4,stroke:#333,color:#fff
+    style HDKG fill:#84cc16,stroke:#333,color:#fff
+    style HSKG fill:#f97316,stroke:#333,color:#fff
 ```
 
-| KG | Nodes | Edges | Labels | Edge Types | Snapshot | Source |
-|----|------:|------:|-------:|-----------:|---------|--------|
-| [Cricket KG](#cricket-kg) | 36,619 | 1,392,017 | 6 | 12 | 21 MB | [Cricsheet](https://cricsheet.org/) |
-| [Pathways KG](#pathways-kg) | 118,686 | 834,785 | 5 | 9 | 9 MB | Reactome, STRING, GO, WikiPathways, UniProt |
-| [Clinical Trials KG](#clinical-trials-kg) | 7,711,965 | 27,069,085 | 15 | 25 | 711 MB | ClinicalTrials.gov, MeSH, RxNorm, OpenFDA, PubMed |
-| [AssetOps KG](#assetops-kg) | 781 | 955 | 8 | 10 | < 1 MB | Synthetic (AssetOpsBench) |
+| KG | Nodes | Edges | Labels | Edge Types | Snapshot | Source | Status |
+|----|------:|------:|-------:|-----------:|---------|--------|--------|
+| [Cricket KG](#cricket-kg) | 36,619 | 1,392,017 | 6 | 12 | 21 MB | Cricsheet | Live |
+| [Pathways KG](#pathways-kg) | 118,686 | 834,785 | 5 | 9 | 9 MB | Reactome, STRING, GO, WikiPathways, UniProt | Live |
+| [Clinical Trials KG](#clinical-trials-kg) | 7,774,446 | 26,973,997 | 15 | 25 | 711 MB | ClinicalTrials.gov, MeSH, RxNorm, OpenFDA, PubMed | Live |
+| [Drug Interactions KG](#drug-interactions-kg) | 32,726 | 191,970 | 4 | 3 | 1.9 MB | DrugBank CC0, DGIdb, SIDER | Live |
+| [AssetOps KG](#assetops-kg) | 781 | 955 | 8 | 10 | < 1 MB | Synthetic (AssetOpsBench) | Live |
+| [Disease Surveillance KG](#disease-surveillance-kg) | ~60K | ~120K | 7 | 7 | TBD | WHO GHO, WUENIC | In progress |
+| Health Determinants KG | ~1M | ~2M | 6 | 4 | TBD | World Bank, UNICEF, WHO | Planned |
+| Health Systems KG | ~500K | ~800K | 6 | 5 | TBD | WHO SPAR, GAVI, Global Fund | Planned |
+
+### Cross-KG Federation
+
+The **biomedical trifecta** (Pathways + Clinical Trials + Drug Interactions) enables queries spanning molecular biology, translational medicine, and pharmacogenomics. Evaluated on the BiomedQA benchmark: **39/40 (98%) accuracy** with MCP tools vs 0% for text-to-Cypher.
+
+The **public health trifecta** (Disease Surveillance + Health Determinants + Health Systems) will enable queries from disease outbreaks to population vulnerability to health system capacity. Bridges to the biomedical trifecta via Disease/Condition and Drug/AMR connections.
 
 ---
 
@@ -214,6 +240,93 @@ graph LR
 
 **Repository:** [samyama-ai/clinicaltrials-kg](https://github.com/samyama-ai/clinicaltrials-kg) (private)
 **Snapshot:** [kg-snapshots-v1](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v1) (`clinical-trials.sgsnap`, 711 MB)
+
+---
+
+## Drug Interactions KG
+
+> Drug-gene interactions, side effects, and indications from 3 open pharmacology databases. Bridges to Pathways KG (via gene name) and Clinical Trials KG (via drug name/DrugBank ID).
+
+### Schema
+
+```mermaid
+graph LR
+    Drug -->|INTERACTS_WITH_GENE| Gene
+    Drug -->|HAS_SIDE_EFFECT| SideEffect
+    Drug -->|HAS_INDICATION| Indication
+
+    style Drug fill:#ec4899,stroke:#333,color:#fff
+    style Gene fill:#3b82f6,stroke:#333,color:#fff
+    style SideEffect fill:#ef4444,stroke:#333,color:#fff
+    style Indication fill:#10b981,stroke:#333,color:#fff
+```
+
+| Label | Count | Key Properties |
+|-------|------:|----------------|
+| Drug | 19,842 | drugbank_id, name, cas_number |
+| Gene | 4,182 | gene_name |
+| SideEffect | 5,858 | meddra_id, name |
+| Indication | 2,844 | meddra_id, name |
+
+| Edge Type | Count | Description |
+|-----------|------:|-------------|
+| INTERACTS_WITH_GENE | 38,033 | Drug-gene interaction (with interaction_type) |
+| HAS_SIDE_EFFECT | 139,193 | Drug side effect from SIDER |
+| HAS_INDICATION | 14,744 | Drug indication from SIDER |
+
+### Performance
+
+- **Rust native loader**: 32,726 nodes + 191,970 edges in **928ms**
+- **Snapshot**: 1.9 MB (`druginteractions.sgsnap`)
+- **BiomedQA benchmark**: 39/40 (98%) accuracy with MCP tools
+
+### Sources
+
+| Source | License | Content |
+|--------|---------|---------|
+| DrugBank CC0 | CC0 | 19,842 drug vocabulary + 52,154 synonym mappings |
+| DGIdb | Open | 38,033 drug-gene interactions from 4,182 genes |
+| SIDER | CC-BY-SA | 139,193 side effect + 14,744 indication edges |
+
+**Repository:** [samyama-ai/druginteractions-kg](https://github.com/samyama-ai/druginteractions-kg) (private)
+**Rust loader:** `examples/druginteractions_loader.rs` in samyama-graph
+**Snapshot:** `druginteractions.sgsnap` (1.9 MB)
+
+---
+
+## Disease Surveillance KG (In Progress)
+
+> WHO Global Health Observatory data — disease case/death counts, vaccine coverage, and health indicators across 234 countries.
+
+### Schema
+
+```mermaid
+graph LR
+    Country -->|IN_REGION| Region
+    Country -->|REPORTED| DiseaseReport
+    DiseaseReport -->|REPORT_OF| Disease
+    Country -->|HAS_COVERAGE| VaccineCoverage
+    Country -->|HAS_INDICATOR| HealthIndicator
+
+    style Country fill:#06b6d4,stroke:#333,color:#fff
+    style Region fill:#84cc16,stroke:#333,color:#fff
+    style Disease fill:#ef4444,stroke:#333,color:#fff
+    style DiseaseReport fill:#8b5cf6,stroke:#333,color:#fff
+    style VaccineCoverage fill:#f59e0b,stroke:#333,color:#fff
+    style HealthIndicator fill:#ec4899,stroke:#333,color:#fff
+```
+
+| Label | Est. Count | Source |
+|-------|--------:|--------|
+| Country | 234 | WHO GHO |
+| Region | 6 | WHO regions (AFR, AMR, SEAR, EUR, EMR, WPR) |
+| Disease | 15+ | Cholera, Malaria, TB, HIV, Meningitis, etc. |
+| DiseaseReport | ~49K | Annual case/death counts per country per disease |
+| VaccineCoverage | ~10K | DTP3, MCV1, BCG, Polio3 coverage per country per year |
+| HealthIndicator | ~164K | Life expectancy, infant mortality, sanitation, water |
+
+**Status:** Data downloaded (223K records from WHO GHO API), Python loader tested (14/14 tests pass), Rust loader pending.
+**Data sources:** WHO GHO OData API (30 indicators across infectious diseases, vaccines, and health metrics)
 
 ---
 

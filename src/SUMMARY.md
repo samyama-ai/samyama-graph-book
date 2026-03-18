@@ -43,6 +43,7 @@
 
 # Appendices
 - [Frequently Asked Questions](./faq.md)
+- [BiomedQA Benchmark FAQ](./biomedqa_faq.md)
 - [Glossary](./glossary.md)
 
 # Research & Publications
