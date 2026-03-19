@@ -7,6 +7,9 @@ Key terms and concepts used throughout this book, organized alphabetically.
 **Adjacency List**
 : A graph representation where each node stores a list of its outgoing and incoming edge IDs. Used in `GraphStore` for fast neighbor lookups. O(1) access to a node's neighbors.
 
+**AGE (Autonomous Graph Evolution)**
+: AI agents that build knowledge graphs from unstructured data — entity extraction + relationship detection. Supports customer-defined regex patterns (deterministic, confidence=1.0) and/or LLM-based extraction (additive, schema-constrained). Per-tenant configurable. Tagline: *"Paste any text, get a knowledge graph."* See also *GAK* (which enriches existing graphs rather than building them). Enterprise feature.
+
 **Agentic Enrichment**
 : See *GAK*.
 
@@ -78,6 +81,9 @@ Key terms and concepts used throughout this book, organized alphabetically.
 
 **LSM-Tree (Log-Structured Merge-Tree)**
 : The storage engine architecture used by RocksDB. Converts random writes into sequential appends, optimizing for write-heavy workloads like graph databases.
+
+**MCP (Model Context Protocol)**
+: Anthropic's open standard for connecting LLMs to external tools and data sources. Samyama exposes graph queries as MCP tools, enabling LLM agents to query the knowledge graph via pre-authored Cypher templates. Achieves 98% accuracy on BiomedQA benchmark vs. 0% for text-to-Cypher. See `sdk/python/samyama_mcp/`.
 
 **Mechanical Sympathy**
 : Designing software to align with hardware characteristics (CPU caches, memory access patterns, SIMD lanes). A core design principle throughout Samyama.
