@@ -137,7 +137,7 @@ AssetOpsBench~\citep{ibm2025assetopsbench} is a benchmark for evaluating LLM age
 
 The benchmark architecture follows a ReAct-style~\citep{yao2023react} loop: the user poses a natural language question; the LLM parses intent, selects which agent to invoke, formulates tool arguments, retrieves data from CouchDB/YAML/CSV, interprets the results, and synthesizes an answer. The data sources are document-oriented: JSON documents in CouchDB, YAML configuration files for failure modes, and CSV exports for events and work orders. This is a natural design choice for the benchmark's purpose of evaluating LLM autonomy---the flat data model places the full reasoning burden on the agent, which is precisely what AssetOpsBench aims to measure.
 
-GPT-4 achieves approximately 65\% (91/139) on these scenarios. The failures cluster around tasks requiring counting across documents, correlating data from multiple sources, and traversing implicit equipment relationships---operations that are inherently difficult for LLMs to perform over unstructured document collections.
+GPT-4 achieves approximately 65\% (91/139) on these scenarios~\citep{ibm2025assetopsbench}. The failures cluster around tasks requiring counting across documents, correlating data from multiple sources, and traversing implicit equipment relationships---operations that are inherently difficult for LLMs to perform over unstructured document collections.
 
 % ============================================================
 % 3. KNOWLEDGE GRAPH CONSTRUCTION
@@ -371,7 +371,7 @@ GPT-4o's 6 failures (scenarios requiring PageRank, BFS traversal, or vector simi
 \subsection{Expanded HuggingFace Benchmark: 467 Scenarios}
 \label{sec:hf-expanded}
 
-Following the release of an expanded AssetOpsBench dataset on HuggingFace (ibm-research/AssetOpsBench), we evaluate our knowledge graph approach against all 467 scenarios spanning six operational domains. This represents a 3.4$\times$ expansion over the original 139-scenario benchmark, adding monitoring rule evaluation, failure-mode-sensor recommendation across 10 equipment types (electric motor, pump, compressor, turbine, etc.), and prognostics tasks including remaining useful life prediction and fault classification.
+Following the release of an expanded AssetOpsBench dataset on HuggingFace~\citep{ibm2025assetopsbench}, we evaluate our knowledge graph approach against all 467 scenarios spanning six operational domains. This represents a 3.4$\times$ expansion over the original 139-scenario benchmark, adding monitoring rule evaluation, failure-mode-sensor recommendation across 10 equipment types (electric motor, pump, compressor, turbine, etc.), and prognostics tasks including remaining useful life prediction and fault classification.
 
 To support the expanded scenarios, we extend the knowledge graph with three new node types (MonitoringRule, PHMScenario, HFScenario) and five new edge types, and add three new deterministic handlers: (1)~a rule-logic handler that evaluates monitoring rules against sensor readings, (2)~an FMSR handler that maps failure modes to detectable sensors via graph traversal, and (3)~a PHM handler that provides asset health profiles from failure history and maintenance records.
 
