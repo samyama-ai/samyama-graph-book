@@ -247,13 +247,14 @@ Table~\ref{tab:main-results} presents the primary comparison across all three ar
     \textbf{Architecture} & \textbf{LLM Role} & \textbf{Data Layer} & \textbf{Pass Rate} & \textbf{Avg Latency} \\
     \midrule
     A: Baseline          & Does everything     & Document stores (CouchDB/YAML/CSV) & 91/139 (65\%)  & not reported \\
-    B: NLQ + graph       & Generates Cypher    & Knowledge graph         & 115/139 (83\%) & 5{,}874\,ms \\
+    B: NLQ + graph (GPT-4)  & Generates Cypher & Knowledge graph        & 114/139 (82\%) & 11{,}033\,ms \\
+    B: NLQ + graph (GPT-4o) & Generates Cypher & Knowledge graph        & 115/139 (83\%) & 5{,}874\,ms \\
     C: Deterministic     & None                & Knowledge graph         & \textbf{137/139 (99\%)} & \textbf{63\,ms} \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\paragraph{Model caveat.} The baseline used GPT-4; our NLQ benchmark used GPT-4o (a more capable model released later). The +18 percentage point gap between NLQ (83\%) and the baseline (65\%) is therefore an \emph{upper bound} on the graph's contribution---part of the improvement may stem from the stronger LLM. A GPT-4 NLQ run is in progress to isolate the graph's effect.
+\paragraph{Model comparison.} The baseline used GPT-4; we evaluated with both GPT-4 and GPT-4o to isolate the graph's contribution. GPT-4 NLQ achieves 82\% (114/139); GPT-4o NLQ achieves 83\% (115/139). The near-identical results confirm that the +17 percentage point improvement over the baseline (65\%) is attributable to the knowledge graph, not the model upgrade.
 
 \subsection{Per-Type Breakdown}
 
