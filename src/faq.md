@@ -1244,6 +1244,97 @@ For production services, most users run Samyama as a **standalone server** (RESP
 
 ---
 
+## Distributed Deployment & High Availability
+
+### Does Samyama support replication?
+
+Yes. Samyama implements **Raft consensus** (via the `openraft` Rust crate) for distributed replication. All write operations (CREATE, SET, DELETE, MERGE) are replicated to followers before being committed.
+
+**How it works:**
+1. Client sends a write to the Raft leader
+2. Leader appends to its local log (uncommitted)
+3. Leader sends `AppendEntries` to followers in parallel
+4. Once a quorum (majority) acknowledges, the entry is committed
+5. Leader applies to the graph store and returns success
+6. Followers apply in the next heartbeat cycle
+
+**Configuration:** 500ms heartbeat, 1.5–3s election timeout, log compaction after 5000 entries.
+
+### How does a node failure get handled?
+
+| Scenario | Behavior | Downtime |
+|----------|----------|----------|
+| **Follower fails** (1 of 3) | Quorum still holds (2/2), writes continue | None |
+| **Leader fails** | Election triggered, new leader elected | 150–300ms |
+| **Network partition** | Majority partition continues; minority rejects writes | Auto-heals on reconnection |
+
+**Recovery:** When a failed node comes back online, it receives heartbeats from the current leader, requests missing log entries, catches up, and rejoins the cluster. No manual intervention needed.
+
+**Data safety:** A Raft entry is committed only after replication to a majority. Even if the leader crashes immediately after committing, at least one other node has the data.
+
+### How does tenant persistence and restore work?
+
+Each tenant's data is persisted to **RocksDB** using column families (one per tenant). The write path is:
+
+1. **Write-Ahead Log (WAL)** — sequential log for durability
+2. **RocksDB** — indexed storage with tenant-prefixed keys
+3. **In-memory graph** — the live GraphStore
+
+On restart, `PersistenceManager::recover(tenant)` scans all nodes and edges from RocksDB and rebuilds the in-memory adjacency lists.
+
+**Snapshots (`.sgsnap`)** provide an additional backup mechanism:
+- Export: `POST /api/snapshot/export` → gzip-compressed JSON-lines file
+- Import: `POST /api/snapshot/import` → ID remapping allows importing into non-empty stores
+- Use cases: disaster recovery, tenant migration, version-controlled deployments
+
+### How does this work in a distributed deployment?
+
+In a Raft cluster:
+- **All nodes hold a full copy** of every tenant's data (full replication, not partitioned)
+- The leader processes writes and replicates via Raft log entries
+- Followers can serve read queries (if configured for read replicas)
+- Snapshot and WAL are per-node; Raft log is the source of truth for consistency
+
+**Tenant-level sharding** is implemented: a routing layer maps each tenant to a specific Raft cluster. Different tenants can be served by different clusters, providing logical isolation.
+
+```
+Tenant A → Raft Cluster 1 (nodes 1, 2, 3)
+Tenant B → Raft Cluster 2 (nodes 4, 5, 6)
+Tenant C → Raft Cluster 1 (same cluster as A)
+```
+
+### What if a tenant needs 1 billion nodes? Isn't sharding necessary?
+
+Yes. Today, Samyama's graph store is **in-memory**, so a single graph is limited by available RAM on one node. Practical limits:
+
+| Nodes | Edges | Approx. RAM |
+|------:|------:|------------|
+| 100K | 1M | ~500 MB |
+| 1M | 10M | ~5 GB |
+| 8M | 28M | ~33 GB |
+| 100M | 500M | ~150 GB |
+| 1B | 5B | ~1.5 TB |
+
+For **1 billion nodes**, you would need either a very large machine (1.5+ TB RAM) or **graph-level sharding** — partitioning a single graph across multiple nodes.
+
+**Current status:** Graph-level sharding is **designed but not yet implemented** (ADR-009). The approach uses graph-aware partitioning (METIS min-cut algorithm) to minimize cross-partition edges, with scatter-gather distributed query execution via Arrow Flight RPC.
+
+**Why not yet?** It's a research-level problem with very high complexity. The current Raft replication handles the majority of production use cases. Graph-level sharding will be implemented when customer demand justifies the engineering investment.
+
+**Workaround today:** For very large graphs, use a machine with sufficient RAM (e.g., AWS `r6i.24xlarge` with 768 GB, or `x2idn.32xlarge` with 2 TB). The in-memory architecture means queries are extremely fast on these machines.
+
+### What are the recommended cluster sizes?
+
+| Cluster | Quorum | Fault Tolerance | Write Latency |
+|---------|--------|-----------------|---------------|
+| 1 node | 1 | None | ~1.2ms |
+| 3 nodes | 2 | 1 failure | ~2.8ms |
+| 5 nodes | 3 | 2 failures | ~3.5ms |
+
+**Recommendation:** 3 nodes for most deployments (balances availability and latency). 5 nodes for critical workloads requiring tolerance of 2 simultaneous failures.
+
+---
+
 ## Enterprise & Operations
 
 ### How does licensing work?

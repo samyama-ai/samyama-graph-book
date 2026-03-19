@@ -2,7 +2,6 @@
 
 [Preface](./preface.md)
 - [About the Project & Author](./about.md)
-- [Samyama Overview Slides (HTML)](./slides.html)
 
 # Part I: The Foundation (Storage & State)
 - [Persistence at Scale](./persistence_at_scale.md)
@@ -51,3 +50,6 @@
 - [Research Paper: Knowledge Graphs for Industrial Operations](./industrial_kg_paper.md)
 - [Research Paper: Open Biomedical Knowledge Graphs](./biomedical_kg_paper.md)
 - [Index of Implemented Papers](./implemented_papers.md)
+
+# Presentations
+- [Samyama Overview Slides (HTML)](./slides.html)
