@@ -333,21 +333,51 @@ SHOW CONSTRAINTS
 
 ### What cost model does the query planner use?
 
-Since v0.6.0, Samyama uses a **cost-based planner** that combines heuristics with cardinality-driven plan selection. The planner collects statistics via `GraphStatistics` (label counts, edge type counts, average degree, and per-property selectivity estimates) and uses them to:
+Since v0.6.1, Samyama has a **graph-native cost-based planner** (ADR-015) with a multiplicative cardinality model. The planner uses two tiers of statistics:
 
-1. **Index selection**: If a property index exists for a WHERE predicate, use `IndexScanOperator`; for AND-chains, select the most selective index. Falls back to `NodeScanOperator` (full label scan) when no index applies.
-2. **Join reordering**: The planner reorders joins based on cardinality estimates to minimize intermediate result sizes.
-3. **Predicate pushdown**: WHERE predicates are pushed across paths and MATCH clauses, scoping them as close to the scan as possible.
-4. **Early LIMIT propagation**: LIMIT clauses are pushed down to reduce work in lower operators.
-5. **Plan caching**: Parsed ASTs and execution plans are cached, eliminating re-parsing and re-planning for repeated queries.
+- **GraphCatalog** (incremental) — triple-level stats per `(source_label, edge_type, target_label)` pattern, maintained on every edge create/delete
+- **GraphStatistics** (batch) — label counts, edge type counts, per-property selectivity (sampled from first 1,000 nodes per label)
 
-Example — the planner selects different operators based on index availability:
+The cost model in `cost_model.rs` assigns estimated cardinalities to each operator:
+
+| Operator | Cost Formula |
+| :--- | :--- |
+| **LabelScan** | `label_count` (from catalog) |
+| **IndexLookup** | Fixed `10.0` (highly selective) |
+| **Expand (Forward)** | `input_cost × avg_out_degree` |
+| **Expand (Reverse)** | `input_cost × avg_in_degree` |
+| **ExpandInto** | `input_cost × edge_existence_probability` |
+| **Filter** | `input_cost × 0.5` (default selectivity) |
+| **Join** | `left_cost + right_cost` |
+| **CartesianProduct** | `left_cost × right_cost` |
+
+The planner pipeline:
+
+1. **Plan enumeration**: For each node in the MATCH pattern, build a candidate plan via BFS (`plan_enumerator.rs`), choosing optimal traversal direction at each step
+2. **Logical optimization**: Apply predicate pushdown and ExpandInto insertion (`logical_optimizer.rs`)
+3. **Cost estimation**: Score each candidate using the multiplicative cost model (`cost_model.rs`)
+4. **Plan selection**: Sort candidates by cost, pick the cheapest (up to 64 candidates evaluated)
+5. **Physical translation**: Convert the logical plan to executable operators (`physical_planner.rs`)
+6. **Index selection**: If a property index exists for a WHERE predicate, use `IndexScanOperator`; for AND-chains, select the most selective index
+7. **Plan caching**: Plans cached with generation-based invalidation tied to catalog changes
+
+Example — the planner selects different starting points based on catalog stats:
 ```cypher
--- Without index on :Person(name): full label scan
+-- 1,000 Person nodes, 10 Company nodes, each Person works at 1 Company
+EXPLAIN MATCH (p:Person)-[:WORKS_AT]->(c:Company) RETURN p.name, c.name
+
+-- Candidate 1 (start from Person): LabelScan(1000) × Expand(1.0) = 1000
+-- Candidate 2 (start from Company): LabelScan(10) × ReverseExpand(100.0) = 1000
+-- Planner evaluates BOTH, picks cheapest
+```
+
+Example — index selection:
+```cypher
+-- Without index: full label scan
 EXPLAIN MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
 -- Plan: NodeScanOperator(Person) → FilterOperator(name = 'Alice') → ProjectOperator
 
--- With index on :Person(name): index scan
+-- With index: index scan
 CREATE INDEX ON :Person(name)
 EXPLAIN MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
 -- Plan: IndexScanOperator(Person.name = 'Alice') → ProjectOperator
@@ -357,58 +387,103 @@ See the [Query Optimization](./query_optimization.md) chapter.
 
 ### How are individual operator costs estimated?
 
-Operator costs are not individually computed today. The planner does not assign a numeric cost to each operator (e.g., "HashJoin costs 1,200 units") or sum them into a total plan cost. Instead:
+Since v0.6.1, the graph-native planner assigns a **multiplicative cardinality estimate** to every operator in a candidate plan via `cost_model::estimate_plan_cost()`. The cost model is recursive — each operator's cost depends on its input's estimated cardinality:
 
-- **Scan**: The planner uses `estimate_label_scan(label)` to know how many nodes a label scan will touch, and `estimate_equality_selectivity(label, prop)` to estimate how many will pass a filter. These numbers appear in `EXPLAIN` output.
-- **Join**: No cost formula. The planner always uses hash join when a shared variable exists.
-- **Sort/Aggregate**: No cost model — always appended if the query requires ORDER BY or aggregation.
-
-Example of what `EXPLAIN` shows today vs. what a future CBO would show:
 ```
--- Today's EXPLAIN output (statistics only, no costs):
-NodeScanOperator [Person] (est. 10,000 rows)
-  └── FilterOperator [age > 25] (selectivity: 0.5)
+Example: MATCH (p:Person)-[:KNOWS]->(q:Person) WHERE q.age > 30 RETURN q
 
--- Future CBO output (with operator costs):
-NodeScanOperator [Person] (est. 10,000 rows, cost: 10,000)
-  └── FilterOperator [age > 25] (est. 5,000 rows, cost: 5,000)
-  Total plan cost: 15,000
+Plan (start from p):
+  LabelScan(Person)                     cost = 1,000        (label count)
+  → Expand(:KNOWS, Forward)             cost = 1,000 × 5.0 = 5,000  (avg_out_degree)
+  → Filter(age > 30)                    cost = 5,000 × 0.5 = 2,500  (default selectivity)
+  Total plan cost: 2,500
+
+Plan (start from q):
+  LabelScan(Person)                     cost = 1,000
+  → Filter(age > 30)                    cost = 1,000 × 0.5 = 500    (filter pushed down!)
+  → Expand(:KNOWS, Reverse)             cost = 500 × 5.0 = 2,500
+  Total plan cost: 2,500
 ```
 
-In a future cost-based optimizer, each operator would carry an estimated cost (factoring in I/O, CPU, and memory), and the planner would compare the total cost of alternative plans to select the cheapest.
+The planner compares all candidate plans and selects the lowest-cost one. `EXPLAIN` shows the chosen plan with operator descriptions; `PLAN_DIAGNOSTICS` (accessible in EXPLAIN output) shows how many candidates were evaluated and their costs.
+
+**Current limitations:**
+- Filter selectivity is hardcoded at 0.5 (no property-level histograms yet)
+- Sort/Aggregate operators are always appended after the chosen scan+expand plan
+- Property-level `estimate_equality_selectivity` exists in GraphStatistics but is not yet wired into the graph-native cost model
 
 ### What cardinality estimation techniques are used?
 
-`GraphStatistics` provides three estimation methods:
+Two tiers of estimation methods:
+
+**GraphCatalog** (triple-level, used by graph-native planner):
 
 | Method | What It Returns | Complexity |
 | :--- | :--- | :---: |
-| `estimate_label_scan(label)` | Exact node count for a label (from `label_index`) | O(1) |
-| `estimate_expand(edge_type)` | Edge count for a type (from `edge_type_index`) | O(1) |
+| `estimate_label_scan(label)` | Exact node count for a label | O(1) |
+| `estimate_expand_out(src_label, edge_type)` | Average outgoing degree (sum across target labels) | O(k) |
+| `estimate_expand_in(tgt_label, edge_type)` | Average incoming degree (sum across source labels) | O(k) |
+| `estimate_edge_existence(src, et, tgt)` | Probability a random (src, tgt) pair has an edge | O(1) |
+
+**GraphStatistics** (batch, used for EXPLAIN display and legacy planner):
+
+| Method | What It Returns | Complexity |
+| :--- | :--- | :---: |
+| `estimate_label_scan(label)` | Exact node count for a label | O(1) |
+| `estimate_expand(edge_type)` | Total edge count for a type | O(1) |
 | `estimate_equality_selectivity(label, prop)` | `1.0 / distinct_count` for the property | O(1) |
 
-Example — for a graph with 10,000 Person nodes where `name` has 8,000 distinct values:
+Example — GraphCatalog triple-level estimation:
 ```
-estimate_label_scan("Person")                    → 10,000
-estimate_equality_selectivity("Person", "name")  → 1/8,000 = 0.000125
-Estimated rows for WHERE name = 'Alice'          → 10,000 × 0.000125 ≈ 1.25
+Graph: 1,000 Persons, 10 Companies, 1,000 WORKS_AT edges (each person → 1 company)
+
+Catalog TripleStats for (:Person, :WORKS_AT, :Company):
+  count = 1,000, avg_out_degree = 1.0, avg_in_degree = 100.0
+
+Plan A (start Person):  1,000 × 1.0 = 1,000 cost
+Plan B (start Company): 10 × 100.0 = 1,000 cost  (same total, different shape)
 ```
 
-Since v0.6.0, these estimates are used for **cost-based plan selection** — the planner uses them to choose join order and index strategy.
+Example — property selectivity:
+```
+10,000 Person nodes, 'name' has 8,000 distinct values:
+estimate_equality_selectivity("Person", "name") → 1/8,000 = 0.000125
+Estimated rows for WHERE name = 'Alice' → 10,000 × 0.000125 ≈ 1.25
+```
 
 ### How are statistics collected and maintained?
 
-Statistics are computed on demand via `GraphStore::compute_statistics()`, which:
+Samyama maintains statistics at two levels:
 
-1. Iterates all labels in the `label_index` and counts nodes per label
-2. Iterates all edge types in the `edge_type_index` and counts edges per type
+**GraphCatalog** (incremental, always up-to-date):
+
+The `GraphCatalog` tracks per-triple-pattern statistics `(source_label, edge_type, target_label)` and is updated **incrementally** on every graph mutation:
+
+- `on_label_added(label)` / `on_label_removed(label)` — updates label counts
+- `on_edge_created(src, src_labels, et, tgt, tgt_labels)` — updates triple stats for all label combinations
+- `on_edge_deleted(...)` — mirrors edge creation
+
+For each triple pattern, the catalog tracks:
+- `count` — total edges matching this pattern
+- `avg_out_degree` — count / distinct_sources
+- `avg_in_degree` — count / distinct_targets
+- `distinct_sources` / `distinct_targets` — unique endpoints
+- `max_out_degree` — peak degree for worst-case estimation
+
+A `generation` counter increments on every change, enabling plan cache invalidation.
+
+**GraphStatistics** (batch, computed on demand):
+
+Computed via `GraphStore::compute_statistics()`:
+1. Iterates all labels in `label_index` and counts nodes per label
+2. Iterates all edge types in `edge_type_index` and counts edges per type
 3. **Samples** the first 1,000 nodes per label to compute per-property stats:
    - `null_fraction` — fraction of sampled nodes missing the property
    - `distinct_count` — number of distinct values observed
    - `selectivity` — `1.0 / distinct_count` (uniform distribution assumption)
 4. Computes `avg_out_degree` across all nodes
 
-Statistics are **not auto-refreshed** — they are recomputed each time `EXPLAIN` is called. There is no background statistics daemon or `ANALYZE` command (as in PostgreSQL). Adding periodic auto-refresh and histogram-based distributions is on the roadmap.
+GraphStatistics are recomputed on each `EXPLAIN` call. Adding histogram-based distributions and wiring property selectivity into the graph-native cost model is on the roadmap.
 
 ### How does the planner handle cardinality estimation errors?
 
@@ -536,15 +611,19 @@ Yes. Future join strategies under consideration:
 | **Index Nested-Loop Join** | Right side has index on join key | O(n × log m) |
 | **Adaptive Join** | Switches strategy based on runtime cardinalities | Variable |
 
-### What scan operators are available, and how is one chosen?
+### What scan and traversal operators are available?
 
-Three scan operators:
+Samyama has **42 physical operators** in total. The key scan and traversal operators:
 
 | Operator | Access Method | When Chosen |
 | :--- | :--- | :--- |
 | **NodeScanOperator** | Full label scan via `label_index` | Default — no index matches the WHERE predicate |
 | **IndexScanOperator** | B-tree range scan on property index | Index exists on `(label, property)` and WHERE has a matching `=`, `>`, `>=`, `<`, or `<=` predicate |
 | **VectorSearchOperator** | HNSW approximate nearest neighbor | `CALL db.index.vector.queryNodes(...)` |
+| **ExpandOperator** | Adjacency list traversal (outgoing or incoming) | Graph-native planner chooses direction based on catalog stats |
+| **ExpandIntoOperator** | Binary search edge existence check O(log d) | Both endpoints already bound (triangle/clique patterns) |
+| **NodeByIdOperator** | Direct node lookup from pre-computed set | Internal use (subquery results) |
+| **ShortestPathOperator** | BFS shortest path with predicates | `shortestPath()` function in MATCH |
 
 Example showing the scan selection logic:
 ```cypher
@@ -595,14 +674,16 @@ To verify which scan your query uses, always prefix with `EXPLAIN`.
 
 ### How does the query planner choose between possible plans?
 
-Since v0.6.0, the planner uses **cost-based plan selection** that considers cardinality estimates when choosing scan strategies, join order, and index usage:
+The graph-native planner follows this pipeline:
 
-1. Parse the Cypher AST (cached for repeated queries)
-2. For each MATCH clause, evaluate index applicability and selectivity → emit `IndexScanOperator` or `NodeScanOperator`
-3. Reorder joins based on estimated cardinalities (smaller build side first)
-4. Push predicates down across paths and MATCH clauses
-5. Propagate LIMIT early to reduce work in lower operators
-6. Cache the plan for reuse
+1. **Parse** the Cypher AST (cached for repeated queries)
+2. **Extract** a `PatternGraph` from the MATCH clause — nodes, edges, labels, directions
+3. **Enumerate** candidate plans: for each pattern node as starting point, BFS through the pattern graph building a logical plan tree. At each edge, `choose_direction()` compares `estimate_expand_out` vs `estimate_expand_in` to pick the cheaper traversal direction
+4. **Optimize** each candidate: predicate pushdown (move Filter below Expand when safe) and ExpandInto insertion (when both endpoints already bound)
+5. **Score** each candidate via `estimate_plan_cost()` using GraphCatalog triple-level stats
+6. **Select** the cheapest plan
+7. **Translate** to physical operators via `logical_to_physical()` (direction reversal: Logical Reverse → Physical Incoming)
+8. **Cache** the plan with generation-based invalidation
 
 ```cypher
 MATCH (a:Person)-[:KNOWS]->(b:Person)
@@ -613,36 +694,56 @@ LIMIT 10
 -- Plan: IndexScan(Person.name='Alice') → Expand(KNOWS) → Project(b.name) → Sort(b.name) → Limit(10)
 ```
 
-**Practical tip**: The planner now reorders joins automatically, but placing the most selective pattern first still helps readability.
+EXPLAIN shows diagnostics including candidates evaluated and chosen plan cost. The planner reorders joins automatically — query text order does not affect plan quality.
 
-### What would a full cost-based optimizer look like?
+### What is the graph-native planner and how does it differ from the legacy planner?
 
-A cost-based optimizer (CBO), as implemented in mature systems like PostgreSQL, follows a fundamentally different approach:
+Since v0.6.1, Samyama has a **graph-native cost-based optimizer** (ADR-015) that follows the same fundamental approach as mature systems like PostgreSQL:
 
-1. **Enumerate** candidate plans — different join orders, scan methods, join algorithms
-2. **Estimate** the cost of each plan using cardinality estimates and a cost model (CPU cost, I/O cost, memory cost)
-3. **Compare** all candidates and select the lowest-cost plan
-4. **Prune** the search space using dynamic programming or heuristic pruning
+1. **Enumerate** candidate plans — one per starting node in the MATCH pattern, with BFS traversal through the pattern graph
+2. **Estimate** the cost of each plan using the multiplicative cardinality model and GraphCatalog triple-level statistics
+3. **Optimize** each candidate with predicate pushdown and ExpandInto insertion
+4. **Compare** all candidates and select the lowest-cost plan (up to 64 evaluated)
 
-Example — a CBO would consider multiple plans for a 3-way join:
+**Key differences from the legacy planner:**
+
+| Aspect | Legacy Planner | Graph-Native Planner |
+| :--- | :--- | :--- |
+| Starting point | Always leftmost node in AST | Evaluates ALL pattern nodes |
+| Direction | Always follows AST direction | Chooses cheapest direction per edge |
+| ExpandInto | Not available | O(log d) edge existence check |
+| Cost model | Heuristic (no numeric costs) | Multiplicative cardinality estimation |
+| Plan candidates | 1 (single greedy plan) | Up to 64 per query |
+| Statistics | Batch (GraphStatistics) | Incremental (GraphCatalog) |
+| Predicate pushdown | Basic | Cost-aware, below Expand nodes |
+
+Example — the graph-native planner considers multiple plans for a 3-way join:
 ```cypher
 MATCH (a:Person)-[:KNOWS]->(b:Person)-[:WORKS_AT]->(c:Company)
 WHERE a.age > 25 AND c.size > 1000
 RETURN a.name, c.name
 
--- Plan A: Scan Person(age>25) → Expand(KNOWS) → Expand(WORKS_AT) → Filter(size>1000)
--- Plan B: Scan Company(size>1000) → ReverseExpand(WORKS_AT) → ReverseExpand(KNOWS) → Filter(age>25)
--- Plan C: Scan Person(age>25) → HashJoin → Scan Company(size>1000) [on intermediate]
--- CBO estimates cost of each, picks cheapest
+-- Plan A (start a): LabelScan(Person) → Filter(age>25) → Expand(KNOWS) → Expand(WORKS_AT) → Filter(size>1000)
+-- Plan B (start c): LabelScan(Company) → Filter(size>1000) → ReverseExpand(WORKS_AT) → ReverseExpand(KNOWS) → Filter(age>25)
+-- Plan C (start b): LabelScan(Person) → Expand(KNOWS, Reverse) → Expand(WORKS_AT) → Filter(age>25, size>1000)
+-- Planner estimates cost of each via catalog stats, picks cheapest
 ```
 
-Tools like [Picasso](https://dsl.cds.iisc.ac.in/projects/PICASSO/) (developed at IISc Bangalore) help visualize CBO behavior by generating **plan diagrams** — color-coded maps showing which plan the optimizer selects at each point in the selectivity space. These visualizations reveal:
+The **ExpandInto** operator is a key graph-native optimization. When both endpoints of an edge are already bound, instead of scanning all neighbors (O(degree)), it checks edge existence via binary search on sorted adjacency lists (O(log degree)):
+```cypher
+-- Triangle pattern: a→b, b→c, a→c
+MATCH (a:Person)-[:KNOWS]->(b:Person)-[:KNOWS]->(c:Person), (a)-[:KNOWS]->(c)
+-- Plan: LabelScan(a) → Expand(a→b) → Expand(b→c) → ExpandInto(a→c)
+-- ExpandInto checks if edge exists between already-bound a and c
+```
+
+**Picasso visualization** (available in samyama-insight) helps analyze CBO behavior by generating **plan diagrams** — color-coded maps showing which plan the optimizer selects at each point in the selectivity/parameter space. These visualizations reveal:
 - **Plan switches**: Where the optimizer changes its preferred plan
 - **Cost cliffs**: Sudden spikes in estimated cost at plan boundaries
 - **Nervous regions**: Areas where small selectivity changes cause frequent plan switches
 - **Robust plans**: Plans that perform well across a wide range of selectivities
 
-Since v0.6.0, Samyama has a cost-based planner that uses cardinality estimates for join reordering and index selection. Extending it with full plan enumeration, per-operator cost formulas, and dynamic programming search (as described above) is a future goal.
+The graph-native planner is enabled via `PlannerConfig { graph_native: true }` and falls back gracefully to the legacy planner for unsupported patterns (e.g., variable-length paths).
 
 ### What are "plan cliffs" and does Samyama have them?
 
@@ -658,21 +759,24 @@ Selectivity of WHERE age > $threshold:
 
 The optimizer switches from index scan to full scan at a threshold, causing a 100x latency spike. Picasso visualizes these as sudden color changes in plan diagrams or sharp spikes in 3D cost surface plots.
 
-Since v0.6.0, Samyama uses a **cost-based optimizer** that considers cardinality estimates and selectivity when choosing plans. This means plan cliffs are possible in theory (e.g., switching from index scan to full scan at a selectivity threshold), but in practice the optimizer's plan space is still relatively narrow (left-deep trees only), which limits the severity of plan cliffs compared to mature RDBMS optimizers.
+Since v0.6.1, Samyama's graph-native planner evaluates multiple candidate plans per query. Plan cliffs are possible (e.g., switching starting point or direction as data distribution shifts). samyama-insight's Picasso tool visualizes these by sweeping parameter or pattern space and coloring cells by chosen plan, revealing plan switches and cost cliffs.
 
 ### Can I evaluate alternative plans for the same query (Foreign Plan Costing)?
 
-**Not yet.** In Picasso terminology, **Foreign Plan Costing (FPC)** means forcing the optimizer to estimate the cost of a plan other than its preferred choice — to measure the "sub-optimality gap."
+**Yes, partially.** The graph-native planner stores `PlanDiagnostics` for each query, accessible via EXPLAIN:
 
-Example of what FPC analysis would look like:
 ```
-Query: MATCH (n:Person) WHERE n.age > 25 RETURN n
-Chosen plan:  IndexScan(age > 25)     → estimated cost: 500
-Foreign plan: LabelScan + Filter      → estimated cost: 10,000
-Sub-optimality if forced to scan:     → 20x worse
+EXPLAIN MATCH (p:Person)-[:WORKS_AT]->(c:Company) RETURN p, c
+
+Planner diagnostics:
+  Candidates evaluated: 2
+  Chosen plan cost: 1000.0
+  Alternatives:
+    Plan starting from p: cost 1000.0 ← selected
+    Plan starting from c: cost 1000.0
 ```
 
-Since v0.6.0, Samyama has a cost-based optimizer that evaluates candidate plans using cardinality estimates. However, the current optimizer does not yet expose alternative plans to the user. FPC-style analysis (comparing the chosen plan's cost against a forced alternative) will become possible through future `EXPLAIN` extensions.
+samyama-insight's Picasso page extends this further — sweeping parameter ranges and showing which plan wins at each point in the selectivity space. Full FPC-style "force a specific plan and measure sub-optimality" is on the roadmap.
 
 ### Can I visualize and compare execution plans (Plan Diffing)?
 
@@ -782,6 +886,41 @@ The optimizer roadmap, roughly in priority order:
 | `USING INDEX` / `USING SCAN` hints | User-controlled plan forcing | Planned |
 | Histogram-based statistics | Better selectivity estimates for skewed data | Planned |
 | Adaptive query execution | Re-plan mid-execution if estimates are wrong | Research |
+
+### How many physical operators does Samyama have?
+
+**42 physical operators** organized into these categories:
+
+| Category | Operators | Count |
+| :--- | :--- | :---: |
+| **Scan & Traverse** | NodeScanOperator, ExpandOperator, ExpandIntoOperator, IndexScanOperator, VectorSearchOperator, NodeByIdOperator, ShortestPathOperator | 7 |
+| **Relational** | FilterOperator, ProjectOperator, JoinOperator, LeftOuterJoinOperator, CartesianProductOperator | 5 |
+| **Aggregation** | AggregateOperator, UnwindOperator, ForeachOperator | 3 |
+| **Sort & Limit** | SortOperator, LimitOperator, SkipOperator, WithBarrierOperator | 4 |
+| **Write** | CreateNodeOperator, CreateEdgeOperator, CreateNodesAndEdgesOperator, MatchCreateEdgeOperator, MatchMergeEdgeOperator, DeleteOperator, SetPropertyOperator, RemovePropertyOperator, MergeOperator | 9 |
+| **Schema/DDL** | CreateIndexOperator, CreateVectorIndexOperator, CompositeCreateIndexOperator, CreateConstraintOperator, DropIndexOperator, ShowIndexesOperator, ShowConstraintsOperator, ShowLabelsOperator, ShowRelationshipTypesOperator, ShowPropertyKeysOperator, SchemaVisualizationOperator | 11 |
+| **Special** | SingleRowOperator, AlgorithmOperator | 2 |
+| **Navigation** | ShortestPathOperator | 1 |
+
+All operators implement the Volcano iterator model (lazy, pull-based) with late materialization (`Value::NodeRef` instead of full node clones).
+
+### How many index types does Samyama have?
+
+**6 distinct index types:**
+
+| Index | Storage | Use Case | Complexity |
+| :--- | :--- | :--- | :---: |
+| **PropertyIndex** | B-Tree (`BTreeMap<PropertyValue, HashSet<NodeId>>`) | Point lookups and range scans on (label, property) | O(log n) |
+| **VectorIndex** | HNSW (Hierarchical Navigable Small World) | Approximate nearest neighbor search | O(log n) |
+| **LabelIndex** | `HashMap<Label, HashSet<NodeId>>` | Fast node lookup by label | O(1) |
+| **EdgeTypeIndex** | `HashMap<EdgeType, HashSet<EdgeId>>` | Fast edge lookup by type | O(1) |
+| **SortedAdjacencyLists** | Vec-of-Vec + FrozenAdjacency (CSR) | Neighbor traversal, `edge_between()` binary search | O(log d) |
+| **ColumnStore** | Columnar property storage | Vectorized property reads for late materialization | O(1) |
+
+Additionally:
+- **Composite indexes** create individual PropertyIndex entries per property in the list
+- **Unique constraints** are enforced via PropertyIndex with uniqueness validation on insert
+- **GraphCatalog** maintains triple-level statistics (not an index, but used for cost-based planning)
 
 ---
 
