@@ -38,6 +38,7 @@
 
 # Part VI: Knowledge Graphs
 - [KG Catalog](./kg_catalog.md)
+- [Ontology & Standards Catalog](./ontology_catalog.md)
 - [Cross-KG Federation](./kg_federation.md)
 
 # Appendices
