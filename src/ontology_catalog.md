@@ -230,40 +230,143 @@ Human rights instruments, humanitarian standards, GBV taxonomies, and crisis dat
 
 ## How These Connect to Samyama KGs
 
+### Currently Loaded (code-verified)
+
 ```mermaid
 graph LR
     subgraph "Samyama KGs"
-        CKG["Cricket KG"]
         PKG["Pathways KG"]
         CTKG["Clinical Trials KG"]
         DIKG["Drug Interactions KG"]
         DSKG["Surveillance KG"]
-        AOKG["AssetOps KG"]
     end
 
-    subgraph "Ontologies Already Used"
-        GO["Gene Ontology"]
-        MeSH["MeSH"]
-        RxNorm["RxNorm"]
-        ICD["ICD-11"]
-        SNOMED["SNOMED CT"]
-        GHO["WHO GHO"]
+    subgraph "Loaded via API/Download"
+        GO["Gene Ontology<br/>go.json.gz + annotations"]
+        Reactome["Reactome<br/>5 data files"]
+        STRING["STRING v12<br/>PPI, score≥700"]
+        UniProt["UniProt<br/>REST API, human reviewed"]
+        WikiP["WikiPathways<br/>.gmt file"]
+        MeSH["MeSH<br/>NLM API"]
+        RxNorm["RxNorm<br/>rxnav.nlm.nih.gov API"]
+        ATC["ATC<br/>from RxNorm properties"]
+        OpenFDA["OpenFDA<br/>api.fda.gov"]
+        PubMed["PubMed<br/>NCBI E-utilities"]
+        DrugBank["DrugBank CC0<br/>vocabulary CSV"]
+        DGIdb["DGIdb<br/>interactions TSV"]
+        SIDER["SIDER<br/>MedDRA side effects"]
+        GHO["WHO GHO<br/>OData API"]
     end
 
     GO -->|"47K terms"| PKG
+    Reactome -->|"pathways"| PKG
+    STRING -->|"PPI"| PKG
+    UniProt -->|"proteins"| PKG
+    WikiP -->|"pathways"| PKG
     MeSH -->|"conditions"| CTKG
     RxNorm -->|"drugs"| CTKG
-    ICD -->|"diseases"| DSKG
-    SNOMED -->|"clinical terms"| CTKG
+    ATC -->|"drug classes"| CTKG
+    OpenFDA -->|"adverse events"| CTKG
+    PubMed -->|"publications"| CTKG
+    DrugBank -->|"drug vocab"| DIKG
+    DGIdb -->|"drug-gene"| DIKG
+    SIDER -->|"side effects"| DIKG
     GHO -->|"indicators"| DSKG
 
-    style CKG fill:#3b82f6,stroke:#333,color:#fff
     style PKG fill:#10b981,stroke:#333,color:#fff
     style CTKG fill:#8b5cf6,stroke:#333,color:#fff
     style DIKG fill:#ec4899,stroke:#333,color:#fff
     style DSKG fill:#06b6d4,stroke:#333,color:#fff
-    style AOKG fill:#f59e0b,stroke:#333,color:#fff
 ```
+
+### Logical Map (full vision including planned)
+
+```mermaid
+graph LR
+    subgraph "Live KGs"
+        PKG["Pathways KG<br/>119K nodes"]
+        CTKG["Clinical Trials KG<br/>7.7M nodes"]
+        DIKG["Drug Interactions KG<br/>33K nodes"]
+        DSKG["Surveillance KG<br/>217K nodes"]
+    end
+
+    subgraph "Planned KGs"
+        HDKG["Health Determinants KG<br/>~1M nodes"]
+        HSKG["Health Systems KG<br/>~500K nodes"]
+    end
+
+    subgraph "Loaded"
+        GO["Gene Ontology"]
+        Reactome["Reactome"]
+        STRING["STRING"]
+        UniProt["UniProt"]
+        MeSH["MeSH"]
+        RxNorm["RxNorm"]
+        ATC["ATC"]
+        DrugBank["DrugBank"]
+        DGIdb["DGIdb"]
+        SIDER["SIDER"]
+        GHO["WHO GHO"]
+    end
+
+    subgraph "Planned Integrations"
+        SNOMED["SNOMED CT"]
+        ICD["ICD-11"]
+        LOINC["LOINC"]
+        UMLS["UMLS"]
+        WDI["World Bank WDI"]
+        AQUASTAT["FAO AQUASTAT"]
+        GAVI["GAVI"]
+        SPAR["WHO SPAR"]
+    end
+
+    GO --> PKG
+    Reactome --> PKG
+    STRING --> PKG
+    UniProt --> PKG
+    MeSH --> CTKG
+    RxNorm --> CTKG
+    ATC --> CTKG
+    DrugBank --> DIKG
+    DGIdb --> DIKG
+    SIDER --> DIKG
+    GHO --> DSKG
+
+    SNOMED -.->|"planned"| CTKG
+    ICD -.->|"planned"| DSKG
+    LOINC -.->|"planned"| CTKG
+    UMLS -.->|"planned"| CTKG
+    WDI -.->|"planned"| HDKG
+    AQUASTAT -.->|"planned"| HDKG
+    GAVI -.->|"planned"| HSKG
+    SPAR -.->|"planned"| HSKG
+
+    DSKG -.->|"Region"| HDKG
+    DSKG -.->|"Region"| HSKG
+    DSKG -.->|"Disease"| CTKG
+    DIKG -.->|"Gene"| PKG
+    DIKG -.->|"Drug"| CTKG
+
+    style PKG fill:#10b981,stroke:#333,color:#fff
+    style CTKG fill:#8b5cf6,stroke:#333,color:#fff
+    style DIKG fill:#ec4899,stroke:#333,color:#fff
+    style DSKG fill:#06b6d4,stroke:#333,color:#fff
+    style HDKG fill:#84cc16,stroke:#333,color:#fff,stroke-dasharray: 5 5
+    style HSKG fill:#f97316,stroke:#333,color:#fff,stroke-dasharray: 5 5
+```
+
+### Not Yet Loaded
+
+| Ontology | Where Referenced | Status |
+|----------|-----------------|--------|
+| **SNOMED CT** | Clinical Trials test schema | No download or parser code |
+| **ICD-11** | Catalog description | Not downloaded; ICD-10 codes pass through from AACT but no enrichment |
+| **LOINC** | Schema has `LabTest(loinc_code)` | No LOINC data loader |
+| **UMLS** | Test schema string | No code at all |
+| **World Bank WDI** | Health Determinants KG (planned) | KG not yet built |
+| **FAO AQUASTAT** | Health Determinants KG (planned) | KG not yet built |
+| **WHO SPAR** | Health Systems KG (planned) | KG not yet built |
+| **GAVI** | Health Systems KG (planned) | KG not yet built |
 
 ---
 
