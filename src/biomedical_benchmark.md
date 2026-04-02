@@ -284,12 +284,4 @@ The full query catalog is in CSV format for automated benchmarking:
 
 ## Reproducing
 
-```bash
-# 1. Launch r6a.8xlarge from AMI ami-0d219aaceb19e2c84
-# 2. Download snapshots from S3
-aws s3 cp s3://samyama-data/snapshots/ ~/samyama/ --recursive
-aws s3 cp s3://samyama-data/raw/aact/study_references.txt ~/samyama/
-
-# 3. Run the benchmark
-SAMYAMA_QUERY_TIMEOUT=300 cargo run --release --example reimport_test
-```
+All knowledge graph snapshots and the benchmark runner (`examples/reimport_test.rs`) are included in the [samyama-graph-enterprise](https://git.samyama.ai) repository. Contact us for access to the pre-built snapshots.
