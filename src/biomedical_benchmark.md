@@ -284,4 +284,4 @@ The full query catalog is in CSV format for automated benchmarking:
 
 ## Reproducing
 
-All knowledge graph snapshots and the benchmark runner (`examples/reimport_test.rs`) are included in the [samyama-graph-enterprise](https://git.samyama.ai) repository. Contact us for access to the pre-built snapshots.
+All knowledge graph snapshots and the benchmark runner are included in Samyama Graph Enterprise Edition. Contact us for access to the pre-built snapshots and benchmark tooling.
