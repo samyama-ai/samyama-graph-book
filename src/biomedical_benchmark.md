@@ -17,16 +17,16 @@ Samyama's biomedical benchmark demonstrates real-world cross-knowledge-graph que
 
 ## Results Summary
 
-**100 queries executed. 86 returned data. 12 returned empty (correct for the specific filter). 2 timed out (300s limit on full-corpus aggregations).**
+**100 queries executed. 96 returned data. 3 returned empty (specific data not in snapshot). 1 timed out.**
 
-| Category | Queries | Pass | Empty | Error | Avg Time |
-|---|---|---|---|---|---|
-| PubMed | 35 | 31 | 3 | 1 | 15.5s |
-| Clinical Trials | 20 | 19 | 1 | 0 | 40.0s |
-| Pathways | 15 | 11 | 4 | 0 | 2.1s |
-| Drug Interactions | 15 | 11 | 3 | 1 | 16.0s |
-| Cross-KG | 15 | 14 | 0 | 1 | 33.5s |
-| **Total** | **100** | **86** | **12** | **2** | |
+| Category | Queries | Pass | Empty | Error |
+|---|---|---|---|---|
+| PubMed | 35 | 33 | 1 | 1 |
+| Clinical Trials | 20 | 19 | 1 | 0 |
+| Pathways | 15 | 15 | 0 | 0 |
+| Drug Interactions | 15 | 14 | 1 | 0 |
+| Cross-KG | 15 | 15 | 0 | 0 |
+| **Total** | **100** | **96** | **3** | **1** |
 
 ## Infrastructure
 
