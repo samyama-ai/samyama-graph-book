@@ -40,6 +40,7 @@
 - [KG Catalog](./kg_catalog.md)
 - [Ontology & Standards Catalog](./ontology_catalog.md)
 - [Cross-KG Federation](./kg_federation.md)
+- [Biomedical KG Benchmark (74M nodes, 1B edges)](./biomedical_benchmark.md)
 
 # Appendices
 - [Frequently Asked Questions](./faq.md)

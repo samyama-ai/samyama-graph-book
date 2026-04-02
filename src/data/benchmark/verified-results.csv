@@ -1,0 +1,24 @@
+id,name,time_ms,rows,sample_result,run,status
+PM01,Article PMID=12345678,19207,1,"Denpasar Declaration on Population and Development (1994)",run11,pass
+PM02,Article PMID=25000000,1409,1,"How to measure technology assessment: an introduction",run11,pass
+PM06,Article→Authors (PMID 25000000),1386,1,"Arie Hasman",run11,pass
+PM07,Article→MeSH (PMID 25000000),1385,6,"Attitude of Health Personnel | Consumer Behavior | Health Information Systems | Medical Informatics | Technology Assessment Biomedical",run11,pass
+PM09,Article→Journal (PMID 25000000),1388,1,"Studies in health technology and informatics",run11,pass
+PM19,MeSH co-occurrence (Neoplasms),19135,10,"Humans (513845) | Female (138966) | Animals (127482) | Male (117695) | Middle Aged (72280)",run11,pass
+CT01,Trial interventions,1897,10,"NCT05524376→no intervention | NCT03092076→Ticagrelor | NCT03391063→Polyamide",run11,pass
+CT02,Trial adverse events,1589,10,"NCT02028182→Pruritus | NCT03790111→Nausea | NCT03790111→Hypertension",run11,pass
+CT03,Trial sites,1622,10,"NCT04609436→Switzerland | NCT03364621→Canada | NCT04325126→China",run11,pass
+PW01,Protein interactions,1430,10,"IGKV2D-28→IGHV3-11 | IGKV2D-28→IL17A | IGKV2D-28→IGHV3-16",run11,pass
+PW05,Pathway proteins (top),1920,10,"Signal Transduction (2614) | Disease (2575) | Immune System (2330) | Metabolism (2216)",run11,pass
+DI01,Drug side effects,1448,10,"Bivalirudin→Abdominal pain | Bivalirudin→Anaemia | Bivalirudin→Anxiety",run11,pass
+DI02,Drug-gene interactions,1479,10,"Cetuximab→(gene names pending)",run11,pass
+XK01,Article→Trial links,31941,10,"PMID 1→NCT03260829 | PMID 9→NCT04563351 | PMID 16→NCT04575389",run11,pass
+XK02,Cancer→Trial interventions,29440,10,"Placebo (521) | Pembrolizumab (137) | carboplatin (106) | Paclitaxel (106) | cyclophosphamide (98)",run11,pass
+XK03,Diabetes→Trial interventions,3483,10,"Placebo (324) | Metformin (70) | Usual care (50) | Insulin (25) | EXERCISE (23)",run11,pass
+XK04,Heart disease→Trial AE,2090,10,"Headache (60) | Nausea (56) | Syncope (51) | Pneumonia (49)",run11,pass
+XK05,Aspirin→Trials,1478,10,"NCT04908982→Aspirin and congenital malformations | NCT00000491→Aspirin myocardial infarction study",run11,pass
+XK06,Metformin→Trial AE,2053,10,"Headache (215) | Nausea (207) | Nasopharyngitis (186) | Diarrhoea (185)",run11,pass
+XK07,Cancer trial sites,13853,10,"United States (4062) | China (1170) | France (827) | Canada (786) | Italy (760)",run11,pass
+XK08,NCI-funded→Interventions,19798,10,"Placebo (933) | laboratory biomarker analysis (614) | cyclophosphamide (517) | radiation therapy (362) | carboplatin (338)",run11,pass
+XK09,NCT-linked count,99157,1,"747505 articles linked to clinical trials",run11,pass
+PM08,Article→Chemical (PMID 25000000),1383,0,"(correct: this article has no chemicals)",run11,pass_empty

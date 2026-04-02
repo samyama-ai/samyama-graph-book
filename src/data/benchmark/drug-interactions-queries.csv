@@ -1,0 +1,11 @@
+id,name,category,hops,cypher
+DI01,Drug side effects (sample),1_hop,1,"MATCH (d:Drug)-[:HAS_SIDE_EFFECT]->(se:SideEffect) RETURN d.name, se.name LIMIT 10"
+DI02,Drug-gene interactions (sample),1_hop,1,"MATCH (d:Drug)-[:INTERACTS_WITH_GENE]->(g:Gene) RETURN d.name, g.name LIMIT 10"
+DI03,Drug indications (sample),1_hop,1,"MATCH (d:Drug)-[:HAS_INDICATION]->(ind:Indication) RETURN d.name, ind.name LIMIT 10"
+DI04,Drugs with most side effects,aggregation,1,"MATCH (d:Drug)-[:HAS_SIDE_EFFECT]->(se:SideEffect) RETURN d.name, count(se) AS side_effects ORDER BY side_effects DESC LIMIT 10"
+DI05,Most common side effects,aggregation,1,"MATCH (d:Drug)-[:HAS_SIDE_EFFECT]->(se:SideEffect) RETURN se.name, count(d) AS drugs ORDER BY drugs DESC LIMIT 10"
+DI06,Drugs sharing a gene target,2_hop,2,"MATCH (d1:Drug)-[:INTERACTS_WITH_GENE]->(g:Gene)<-[:INTERACTS_WITH_GENE]-(d2:Drug) WHERE d1.name = 'Metformin' AND d1 <> d2 RETURN d2.name, g.name LIMIT 10"
+DI07,Drugs for a specific indication,1_hop,1,"MATCH (d:Drug)-[:HAS_INDICATION]->(ind:Indication) WHERE ind.name CONTAINS 'Diabetes' RETURN d.name, ind.name LIMIT 10"
+DI08,Side effects shared between two drugs,2_hop,2,"MATCH (d1:Drug)-[:HAS_SIDE_EFFECT]->(se:SideEffect)<-[:HAS_SIDE_EFFECT]-(d2:Drug) WHERE d1.name = 'Aspirin' AND d1 <> d2 RETURN d2.name, se.name LIMIT 10"
+DI09,Genes targeted by most drugs,aggregation,1,"MATCH (d:Drug)-[:INTERACTS_WITH_GENE]->(g:Gene) RETURN g.name, count(d) AS drugs ORDER BY drugs DESC LIMIT 10"
+DI10,Drug with both indications and side effects,2_hop,1,"MATCH (d:Drug)-[:HAS_INDICATION]->(ind:Indication) MATCH (d)-[:HAS_SIDE_EFFECT]->(se:SideEffect) WHERE d.name = 'Bivalirudin' RETURN ind.name, se.name LIMIT 10"
