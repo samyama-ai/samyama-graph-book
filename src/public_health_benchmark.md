@@ -170,6 +170,6 @@ Available for download:
 
 | Snapshot | Size | Source |
 |---|---|---|
-| `health-determinants.sgsnap` | 5.3 MB | [GitHub Release kg-snapshots-v6](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v6) |
-| `health-systems.sgsnap` | 0.2 MB | [GitHub Release kg-snapshots-v6](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v6) |
+| `health-determinants.sgsnap` | 6.5 MB | [GitHub Release kg-snapshots-v6](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v6) |
+| `health-systems.sgsnap` | 0.5 MB | [GitHub Release kg-snapshots-v6](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v6) |
 | Also on S3 | | `s3://samyama-data/snapshots/` |

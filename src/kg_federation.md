@@ -256,7 +256,7 @@ LIMIT 10
 
 ### Prerequisites
 
-- Samyama Graph Enterprise v0.6.1+ running on `localhost:8080`
+- Samyama Graph Enterprise v0.7.0+ running on `localhost:8080`
 - Snapshots downloaded:
   - `pathways.sgsnap` from [kg-snapshots-v3](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v3)
   - `clinical-trials.sgsnap` from [kg-snapshots-v1](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v1)

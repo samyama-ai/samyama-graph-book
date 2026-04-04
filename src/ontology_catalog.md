@@ -286,13 +286,10 @@ graph LR
     subgraph "Live KGs"
         PKG["Pathways KG<br/>119K nodes"]
         CTKG["Clinical Trials KG<br/>7.7M nodes"]
-        DIKG["Drug Interactions KG<br/>33K nodes"]
+        DIKG["Drug Interactions KG<br/>245K nodes"]
         DSKG["Surveillance KG<br/>217K nodes"]
-    end
-
-    subgraph "Planned KGs"
-        HDKG["Health Determinants KG<br/>~1M nodes"]
-        HSKG["Health Systems KG<br/>~500K nodes"]
+        HDKG["Health Determinants KG<br/>286K nodes"]
+        HSKG["Health Systems KG<br/>20K nodes"]
     end
 
     subgraph "Loaded"

@@ -131,5 +131,5 @@ See [MCP Tool Catalog — Architecture](../docs/mcp-tool-catalog.md) for sequenc
 | **MCP tools** | **39/40 (98%)** | **651ms** | **0** | Selects pre-authored tool, deterministic execution |
 
 **Hardware:** AWS g4dn.4xlarge (16 vCPU AMD EPYC, 62GB RAM, NVIDIA A10G)
-**Graph:** Pathways (119K nodes) + Drug Interactions (33K nodes) + Clinical Trials (7.7M nodes)
+**Graph:** Pathways (119K nodes) + Drug Interactions (245K nodes) + Clinical Trials (7.7M nodes)
 **Verified:** 3 independent fresh-load runs, all producing 39/40 (98%)

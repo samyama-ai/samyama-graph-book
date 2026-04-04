@@ -557,7 +557,7 @@ All packages must stay version-aligned. These are the 13 files that must be upda
 
 ```mermaid
 graph LR
-    V["Version<br/>v0.6.0"]
+    V["Version<br/>v0.7.0"]
 
     V --> CT["Cargo.toml<br/>(root)"]
     V --> CLI["cli/Cargo.toml"]

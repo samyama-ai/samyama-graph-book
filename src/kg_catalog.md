@@ -1,6 +1,6 @@
 # Knowledge Graph Catalog
 
-Samyama ships with pre-built knowledge graphs spanning sports, biomedicine, and industrial operations. Each KG is available as a portable `.sgsnap` snapshot that loads in seconds, and comes with an MCP server for AI agent integration.
+Samyama ships with 8 pre-built knowledge graphs spanning biomedicine, public health, sports, and industrial operations. Each KG is available as a portable `.sgsnap` snapshot that loads in seconds, stored on S3 (`s3://samyama-data/snapshots/`) and GitHub Releases. All KGs are cataloged in the Supabase `kg_registry` table.
 
 ---
 
@@ -10,14 +10,14 @@ Samyama ships with pre-built knowledge graphs spanning sports, biomedicine, and 
 graph TB
     subgraph "Biomedical Trifecta"
         PKG["🧬 Pathways KG<br/>119K nodes · 835K edges"]
-        CTKG["💊 Clinical Trials KG<br/>7.7M nodes · 27M edges"]
-        DIKG["💉 Drug Interactions KG<br/>33K nodes · 192K edges"]
+        CTKG["💊 Clinical Trials KG<br/>7.8M nodes · 27M edges"]
+        DIKG["💉 Drug Interactions KG<br/>245K nodes · 388K edges"]
     end
 
-    subgraph "Public Health Trifecta (planned)"
-        DSKG["🦠 Disease Surveillance KG<br/>~500K nodes (in progress)"]
-        HDKG["📊 Health Determinants KG<br/>~1M nodes (planned)"]
-        HSKG["🏥 Health Systems KG<br/>~500K nodes (planned)"]
+    subgraph "Public Health Trifecta"
+        DSKG["🦠 Disease Surveillance KG<br/>217K nodes · 241K edges"]
+        HDKG["📊 Health Determinants KG<br/>286K nodes · 286K edges"]
+        HSKG["🏥 Health Systems KG<br/>20K nodes · 19K edges"]
     end
 
     subgraph "Sports"
@@ -47,20 +47,22 @@ graph TB
 
 | KG | Nodes | Edges | Labels | Edge Types | Snapshot | Source | Status |
 |----|------:|------:|-------:|-----------:|---------|--------|--------|
-| [Cricket KG](#cricket-kg) | 36,619 | 1,392,017 | 6 | 12 | 21 MB | Cricsheet | Live |
-| [Pathways KG](#pathways-kg) | 118,686 | 834,785 | 5 | 9 | 9 MB | Reactome, STRING, GO, WikiPathways, UniProt | Live |
-| [Clinical Trials KG](#clinical-trials-kg) | 7,774,446 | 26,973,997 | 15 | 25 | 711 MB | ClinicalTrials.gov, MeSH, RxNorm, OpenFDA, PubMed | Live |
-| [Drug Interactions KG](#drug-interactions-kg) | 32,726 | 191,970 | 4 | 3 | 1.9 MB | DrugBank CC0, DGIdb, SIDER | Live |
-| [AssetOps KG](#assetops-kg) | 781 | 955 | 8 | 10 | < 1 MB | Synthetic (AssetOpsBench) | Live |
-| [Disease Surveillance KG](#disease-surveillance-kg) | ~60K | ~120K | 7 | 7 | TBD | WHO GHO, WUENIC | In progress |
-| Health Determinants KG | ~1M | ~2M | 6 | 4 | TBD | World Bank, UNICEF, WHO | Planned |
-| Health Systems KG | ~500K | ~800K | 6 | 5 | TBD | WHO SPAR, GAVI, Global Fund | Planned |
+| [Cricket KG](#cricket-kg) | 36,619 | 1,392,017 | 6 | 12 | 21 MB | [Cricsheet](https://cricsheet.org/) | Live |
+| [Pathways KG](#pathways-kg) | 118,686 | 834,785 | 5 | 9 | 9 MB | [Reactome](https://reactome.org/), STRING, GO | Live |
+| [Clinical Trials KG](#clinical-trials-kg) | 7,774,446 | 26,973,997 | 15 | 25 | 711 MB | [AACT](https://aact.ctti-clinicaltrials.org/), MeSH, RxNorm | Live |
+| [Drug Interactions KG](#drug-interactions-kg) | 245,000 | 388,000 | 8 | 9 | 8.1 MB | [DrugBank](https://go.drugbank.com/), SIDER, ChEMBL, DGIdb, OpenFDA | Live |
+| [AssetOps KG](#assetops-kg) | 781 | 955 | 8 | 10 | < 1 MB | Synthetic ([AssetOpsBench](https://github.com/IBM/AssetOpsBench)) | Live |
+| [Disease Surveillance KG](#disease-surveillance-kg) | 216,553 | 241,084 | 6 | 5 | 5.7 MB | [WHO GHO](https://ghoapi.azureedge.net/api) | Live |
+| [Health Determinants KG](#health-determinants-kg) | 285,635 | 285,628 | 7 | 6 | 6.5 MB | [World Bank WDI](https://data.worldbank.org/), WHO Air Quality, WHO WASH | Live |
+| [Health Systems KG](#health-systems-kg) | 19,661 | 19,428 | 3 | 2 | 0.5 MB | [WHO SPAR](https://extranet.who.int/e-spar), WHO NHWA | Live |
 
 ### Cross-KG Federation
 
-The **biomedical trifecta** (Pathways + Clinical Trials + Drug Interactions) enables queries spanning molecular biology, translational medicine, and pharmacogenomics. Evaluated on the BiomedQA benchmark: **39/40 (98%) accuracy** with MCP tools vs 0% for text-to-Cypher.
+The **biomedical trifecta** (Pathways + Clinical Trials + Drug Interactions) enables queries spanning molecular biology, translational medicine, and pharmacogenomics. With PubMed: 74.3M nodes, 1.07B edges — [96/100 queries pass](./biomedical_benchmark.md). BiomedQA benchmark: **98% accuracy** with MCP tools.
 
-The **public health trifecta** (Disease Surveillance + Health Determinants + Health Systems) will enable queries from disease outbreaks to population vulnerability to health system capacity. Bridges to the biomedical trifecta via Disease/Condition and Drug/AMR connections.
+The **public health trifecta** (Disease Surveillance + Health Determinants + Health Systems) enables queries from disease outbreaks to population vulnerability to health system capacity — [40/40 queries pass](./public_health_benchmark.md). Bridges to the biomedical trifecta via `Country.iso_code`, `Drug.drugbank_id`, and `Gene.gene_name`.
+
+Together, the **6-KG federation** spans molecular biology to population health in a single OpenCypher query. See [Cross-KG Federation](./kg_federation.md) for details.
 
 ---
 
@@ -245,7 +247,7 @@ graph LR
 
 ## Drug Interactions KG
 
-> Drug-gene interactions, side effects, and indications from 3 open pharmacology databases. Bridges to Pathways KG (via gene name) and Clinical Trials KG (via drug name/DrugBank ID).
+> Drug-gene interactions, side effects, indications, bioactivities, and adverse events from 5 open pharmacology databases. Bridges to Pathways KG (via gene name) and Clinical Trials KG (via DrugBank ID).
 
 ### Schema
 
@@ -254,6 +256,10 @@ graph LR
     Drug -->|INTERACTS_WITH_GENE| Gene
     Drug -->|HAS_SIDE_EFFECT| SideEffect
     Drug -->|HAS_INDICATION| Indication
+    Drug -->|HAS_BIOACTIVITY| Bioactivity
+    Drug -->|HAS_ADVERSE_EVENT| AdverseEvent
+    Drug -->|CLASSIFIED_AS| DrugClass
+    Bioactivity -->|BIOACTIVITY_TARGET| Target
 
     style Drug fill:#ec4899,stroke:#333,color:#fff
     style Gene fill:#3b82f6,stroke:#333,color:#fff
@@ -261,40 +267,29 @@ graph LR
     style Indication fill:#10b981,stroke:#333,color:#fff
 ```
 
-| Label | Count | Key Properties |
-|-------|------:|----------------|
-| Drug | 19,842 | drugbank_id, name, cas_number |
-| Gene | 4,182 | gene_name |
-| SideEffect | 5,858 | meddra_id, name |
-| Indication | 2,844 | meddra_id, name |
-
-| Edge Type | Count | Description |
-|-----------|------:|-------------|
-| INTERACTS_WITH_GENE | 38,033 | Drug-gene interaction (with interaction_type) |
-| HAS_SIDE_EFFECT | 139,193 | Drug side effect from SIDER |
-| HAS_INDICATION | 14,744 | Drug indication from SIDER |
-
 ### Performance
 
-- **Rust native loader**: 32,726 nodes + 191,970 edges in **928ms**
-- **Snapshot**: 1.9 MB (`druginteractions.sgsnap`)
-- **BiomedQA benchmark**: 39/40 (98%) accuracy with MCP tools
+- **Rust native loader**: 245,000 nodes + 388,000 edges in **7.7s**
+- **Snapshot**: 8.1 MB (`druginteractions.sgsnap`)
+- **BiomedQA benchmark**: 98% accuracy with MCP tools
 
-### Sources
+### Sources (5 of 6)
 
 | Source | License | Content |
 |--------|---------|---------|
-| DrugBank CC0 | CC0 | 19,842 drug vocabulary + 52,154 synonym mappings |
-| DGIdb | Open | 38,033 drug-gene interactions from 4,182 genes |
-| SIDER | CC-BY-SA | 139,193 side effect + 14,744 indication edges |
+| [DrugBank](https://go.drugbank.com/) CC0 | CC0 | 19,842 drug vocabulary + synonym mappings |
+| [DGIdb](https://dgidb.org/) | Open | Drug-gene interactions from 4,182 genes |
+| [SIDER](http://sideeffects.embl.de/) | CC-BY-SA | Side effects + indications |
+| [ChEMBL](https://www.ebi.ac.uk/chembl/) | CC-BY-SA | 208K bioactivity records |
+| [OpenFDA](https://open.fda.gov/) FAERS | Public | 1.7K adverse event reports |
 
-**Repository:** [samyama-ai/druginteractions-kg](https://github.com/samyama-ai/druginteractions-kg) (private)
+**Repository:** [samyama-ai/druginteractions-kg](https://github.com/samyama-ai/druginteractions-kg)
 **Rust loader:** `examples/druginteractions_loader.rs` in samyama-graph
-**Snapshot:** `druginteractions.sgsnap` (1.9 MB)
+**Snapshot:** [`druginteractions.sgsnap`](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v5) (8.1 MB)
 
 ---
 
-## Disease Surveillance KG (In Progress)
+## Disease Surveillance KG
 
 > WHO Global Health Observatory data — disease case/death counts, vaccine coverage, and health indicators across 234 countries.
 
@@ -316,17 +311,117 @@ graph LR
     style HealthIndicator fill:#ec4899,stroke:#333,color:#fff
 ```
 
-| Label | Est. Count | Source |
-|-------|--------:|--------|
+| Label | Count | Source |
+|-------|------:|--------|
 | Country | 234 | WHO GHO |
 | Region | 6 | WHO regions (AFR, AMR, SEAR, EUR, EMR, WPR) |
-| Disease | 15+ | Cholera, Malaria, TB, HIV, Meningitis, etc. |
+| Disease | 15 | Cholera, Malaria, TB, HIV, Meningitis, etc. |
 | DiseaseReport | ~49K | Annual case/death counts per country per disease |
 | VaccineCoverage | ~10K | DTP3, MCV1, BCG, Polio3 coverage per country per year |
 | HealthIndicator | ~164K | Life expectancy, infant mortality, sanitation, water |
 
-**Status:** Data downloaded (223K records from WHO GHO API), Python loader tested (14/14 tests pass), Rust loader pending.
-**Data sources:** WHO GHO OData API (30 indicators across infectious diseases, vaccines, and health metrics)
+**Repository:** [samyama-ai/surveillance-kg](https://github.com/VaidhyaMegha/surveillance-kg)
+**Rust loader:** `examples/surveillance_loader.rs` in samyama-graph
+**Snapshot:** [`surveillance.sgsnap`](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v4) (5.7 MB)
+**Data source:** [WHO GHO OData API](https://ghoapi.azureedge.net/api) — 30 indicators across infectious diseases, vaccines, and health metrics
+
+---
+
+## Health Determinants KG
+
+> Population vulnerability indicators from World Bank WDI, WHO Air Quality, and WHO Water/Sanitation — 80 curated indicators across 211 countries (1990–2024).
+
+### Schema
+
+```mermaid
+graph LR
+    Country -->|IN_REGION| Region
+    Country -->|HAS_INDICATOR| SocioeconomicIndicator
+    Country -->|ENVIRONMENT_OF| EnvironmentalFactor
+    Country -->|NUTRITION_STATUS| NutritionIndicator
+    Country -->|DEMOGRAPHIC_OF| DemographicProfile
+    Country -->|WATER_RESOURCE_OF| WaterResource
+
+    style Country fill:#84cc16,stroke:#333,color:#fff
+    style Region fill:#06b6d4,stroke:#333,color:#fff
+    style SocioeconomicIndicator fill:#f59e0b,stroke:#333,color:#fff
+    style EnvironmentalFactor fill:#ef4444,stroke:#333,color:#fff
+    style NutritionIndicator fill:#10b981,stroke:#333,color:#fff
+    style DemographicProfile fill:#8b5cf6,stroke:#333,color:#fff
+    style WaterResource fill:#3b82f6,stroke:#333,color:#fff
+```
+
+| Category | Nodes | Indicators | Examples |
+|----------|------:|-----------|---------|
+| Countries | 211 | — | ISO 3166-1 alpha-3, income level, WB region |
+| Regions | 7 | — | South Asia, Sub-Saharan Africa, etc. |
+| Socioeconomic | 52,367 | 16 | GDP, GNI, poverty, Gini, unemployment, literacy, health expenditure |
+| Environmental | 35,667 | 10 + PM2.5 | PM2.5 exposure, forest area, renewable energy, CO2 |
+| Nutrition | 14,073 | 10 | Stunting, wasting, obesity, undernourishment, anemia |
+| Demographic | 107,088 | 15 | Population, fertility, life expectancy, infant mortality, urbanization |
+| Water | 76,222 | 10 + WASH | Drinking water, sanitation, freshwater withdrawal, water stress |
+
+### Performance
+
+- **Rust native loader**: 285,635 nodes + 285,628 edges in **2.4s**
+- **Snapshot**: 6.5 MB (`health-determinants.sgsnap`)
+- **Benchmark**: [40/40 queries pass](./public_health_benchmark.md) (median 15ms)
+
+### Sources
+
+| Source | License | Content |
+|--------|---------|---------|
+| [World Bank WDI](https://data.worldbank.org/) | CC-BY 4.0 | 80 indicators, 211 countries, 1990–2024 |
+| [WHO GHO](https://ghoapi.azureedge.net/api) Air Quality | Open | PM2.5 annual mean (1,880 records) |
+| [WHO GHO](https://ghoapi.azureedge.net/api) WASH | Open | Water/sanitation (47K records) |
+
+**Repository:** [samyama-ai/health-determinants-kg](https://github.com/samyama-ai/health-determinants-kg)
+**Rust loader:** `examples/health_determinants_loader.rs` in samyama-graph-enterprise
+**Snapshot:** [`health-determinants.sgsnap`](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v6) (6.5 MB)
+
+---
+
+## Health Systems KG
+
+> Health system capacity — IHR emergency preparedness and health workforce density from WHO, across 233 countries.
+
+### Schema
+
+```mermaid
+graph LR
+    EmergencyResponse -->|CAPACITY_FOR| Country
+    HealthWorkforce -->|SERVES| Country
+
+    style Country fill:#f97316,stroke:#333,color:#fff
+    style EmergencyResponse fill:#ef4444,stroke:#333,color:#fff
+    style HealthWorkforce fill:#3b82f6,stroke:#333,color:#fff
+```
+
+| Label | Count | Source |
+|-------|------:|--------|
+| Country | 233 | WHO GHO |
+| EmergencyResponse | 8,430 | WHO SPAR v2 — 15 IHR capacities per country per year |
+| HealthWorkforce | 10,998 | WHO NHWA — physicians, nurses, dentists, pharmacists |
+
+### Performance
+
+- **Rust native loader**: 19,661 nodes + 19,428 edges in **149ms**
+- **Snapshot**: 0.5 MB (`health-systems.sgsnap`)
+- **Benchmark**: [40/40 queries pass](./public_health_benchmark.md) (cross-KG with Health Determinants)
+
+### Sources
+
+| Source | License | Content |
+|--------|---------|---------|
+| [WHO SPAR v2](https://extranet.who.int/e-spar) | Open | 15 IHR capacity scores, 233 countries |
+| [WHO NHWA](https://apps.who.int/nhwa/) | Open | Health workforce density per 10K population |
+
+**Pending sources** (loaders built, data not yet downloaded):
+GAVI vaccine supply, Global Fund disbursements, IHME health expenditure
+
+**Repository:** [samyama-ai/health-systems-kg](https://github.com/samyama-ai/health-systems-kg)
+**Rust loader:** `examples/health_systems_loader.rs` in samyama-graph-enterprise
+**Snapshot:** [`health-systems.sgsnap`](https://github.com/samyama-ai/samyama-graph/releases/tag/kg-snapshots-v6) (0.5 MB)
 
 ---
 
@@ -354,8 +449,8 @@ graph LR
 All snapshots follow the same load pattern:
 
 ```bash
-# 1. Start Samyama Graph (v0.6.1+)
-./target/release/samyama --demo social
+# 1. Start Samyama Graph (v0.7.0+)
+./target/release/samyama
 
 # 2. Create a tenant
 curl -X POST http://localhost:8080/api/tenants \
