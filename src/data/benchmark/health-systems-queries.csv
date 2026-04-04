@@ -1,0 +1,11 @@
+id,name,category,hops,cypher
+HS01,Country by ISO code,point_lookup,0,"MATCH (c:Country {iso_code: 'IND'}) RETURN c.name, c.who_region"
+HS02,SPAR scores for India,1_hop,1,"MATCH (e:EmergencyResponse)-[:CAPACITY_FOR]->(c:Country {iso_code: 'IND'}) WHERE e.year = 2023 RETURN e.capacity_code, e.capacity_name, e.score ORDER BY e.capacity_code"
+HS03,SPAR scores for Nigeria,1_hop,1,"MATCH (e:EmergencyResponse)-[:CAPACITY_FOR]->(c:Country {iso_code: 'NGA'}) WHERE e.year = 2023 RETURN e.capacity_code, e.capacity_name, e.score ORDER BY e.capacity_code"
+HS04,Top 10 countries by surveillance capacity,aggregation,1,"MATCH (e:EmergencyResponse)-[:CAPACITY_FOR]->(c:Country) WHERE e.capacity_code = 'C05' AND e.year = 2023 RETURN c.name, e.score ORDER BY e.score DESC LIMIT 10"
+HS05,Countries with lowest lab capacity,aggregation,1,"MATCH (e:EmergencyResponse)-[:CAPACITY_FOR]->(c:Country) WHERE e.capacity_code = 'C04' AND e.year = 2023 RETURN c.name, e.score ORDER BY e.score ASC LIMIT 10"
+HS06,Average SPAR score per country (2023),aggregation,1,"MATCH (e:EmergencyResponse)-[:CAPACITY_FOR]->(c:Country) WHERE e.year = 2023 WITH c, round(avg(e.score)) AS avg_spar, count(e) AS capacities RETURN c.name, avg_spar, capacities ORDER BY avg_spar DESC LIMIT 10"
+HS07,Countries with lowest avg SPAR,aggregation,1,"MATCH (e:EmergencyResponse)-[:CAPACITY_FOR]->(c:Country) WHERE e.year = 2023 WITH c, avg(e.score) AS avg_spar RETURN c.name, avg_spar ORDER BY avg_spar ASC LIMIT 10"
+HS08,India SPAR trend over years,trend,1,"MATCH (e:EmergencyResponse)-[:CAPACITY_FOR]->(c:Country {iso_code: 'IND'}) WITH e.year AS year, round(avg(e.score)) AS avg_score RETURN year, avg_score ORDER BY year"
+HS09,Capacity gap: risk communication below 40,aggregation,1,"MATCH (e:EmergencyResponse)-[:CAPACITY_FOR]->(c:Country) WHERE e.capacity_code = 'C10' AND e.year = 2023 AND e.score < 40 RETURN c.name, e.score ORDER BY e.score ASC LIMIT 10"
+HS10,Count countries per SPAR year,aggregation,1,"MATCH (e:EmergencyResponse)-[:CAPACITY_FOR]->(c:Country) WITH e.year AS year, count(DISTINCT c) AS countries RETURN year, countries ORDER BY year"
