@@ -1,0 +1,266 @@
+Importing PubMed snapshot... [compact] Frozen: 1043607780 edges (1 segments, 66160186 nodes). Buffer: 0 edges.
+66160185 nodes, 1043607780 edges in 1705.7s
+Importing Clinical Trials snapshot... [compact] Frozen: 1070581777 edges (2 segments, 73934632 nodes). Buffer: 0 edges.
+7774446 nodes, 26973997 edges in 143.9s
+Importing Pathways snapshot... [compact] Frozen: 1071416562 edges (3 segments, 74053318 nodes). Buffer: 0 edges.
+118686 nodes, 834785 edges in 4.9s
+Loading Drug Interactions (direct)...     DrugBank: 19,842 Drug nodes, 52,154 synonyms indexed
+    DGIdb: 4,091 Gene nodes, 35,066 interaction edges
+  Phase 1 (DrugBank+DGIdb): 19,842 drugs, 4,091 genes, 35,066 interactions [330ms]
+    SIDER drug_names: 1,430 mappings
+  Phase 2 (SIDER): 5,858 side effects (139,193 edges), 2,844 indications (14,744 edges) [606ms]
+    OpenFDA: 1,765 adverse events, 18,053 edges
+  Phase 4 (OpenFDA): 1,765 adverse events, 18,053 edges [37ms]
+34400 nodes, 207056 edges in 1.0s
+Loading Surveillance (direct)...     Countries: 234
+    Regions: 6
+    IN_REGION edges: 170
+    Diseases: 15
+    Disease reports: 42,136 nodes, 39,813 REPORTED, 42,136 REPORT_OF
+    Vaccine coverage: 10,212 nodes, 9,662 edges
+    Health indicators: 163,950 nodes, 149,303 edges
+216553 nodes, 241084 edges in 1.5s
+Loading Health Determinants (direct)...     Countries: 211
+    Regions: 7
+    IN_REGION edges: 211
+      ... 50,000 nodes (247797/sec)
+    SocioeconomicIndicator: 52,367 nodes, 52,367 edges
+    EnvironmentalFactor: 33,847 nodes, 33,847 edges
+    NutritionIndicator: 14,073 nodes, 14,073 edges
+      ... 50,000 nodes (257046/sec)
+      ... 100,000 nodes (255333/sec)
+    DemographicProfile: 107,088 nodes, 107,088 edges
+    WaterResource: 32,209 nodes, 32,209 edges
+    Air quality: 1,820 nodes
+    AQUASTAT: 44,013 nodes
+285635 nodes, 285628 edges in 2.0s
+Loading Health Systems (direct)...     Countries: 233
+    Emergency Response (SPAR): 8,430
+    Health Workforce (NHWA): 10,998
+19661 nodes, 19428 edges in 0.2s
+
+All data loaded in 1859.2s
+Building NCT bridge (Article → ClinicalTrial)...
+  575778 ClinicalTrial nodes with nct_id
+  0 REFERENCED_IN edges created in 26.3s
+Creating indexes...
+  32 indexes created in 292.3s
+
+Loaded 35 queries from pubmed-queries.csv
+Loaded 20 queries from clinical-trials-queries.csv
+Loaded 15 queries from pathways-queries.csv
+Loaded 15 queries from drug-interactions-queries.csv
+Loaded 15 queries from cross-kg-queries.csv
+Loaded 20 queries from health-determinants-queries.csv
+Loaded 10 queries from health-systems-queries.csv
+Loaded 10 queries from public-health-cross-kg-queries.csv
+Loaded 60 queries from expanded-queries.csv
+
+Running 200 queries...
+
+  PASS PM01: 1 rows in 9891.0ms [Article by PMID]
+  PASS PM02: 1 rows in 1966.5ms [Article by different PMID]
+  PASS PM03: 1 rows in 2290.6ms [Article by PMID (recent)]
+  PASS PM04: 1 rows in 2367.4ms [Article by PMID (oldest)]
+  PASS PM05: 10 rows in 47616.2ms [Articles by year]
+  PASS PM06: 1 rows in 6273.6ms [Article → Authors]
+  PASS PM07: 6 rows in 1341.2ms [Article → MeSH terms]
+  PASS PM08: 5 rows in 1338.6ms [Article → Chemicals]
+  PASS PM09: 1 rows in 1331.8ms [Article → Journal]
+  EMPTY PM10: 0 rows in 1320.5ms [Article → Grants]
+  PASS PM11: 10 rows in 1335.2ms [Author → Articles (reverse)]
+  PASS PM12: 10 rows in 2274.1ms [MeSH → Articles (reverse)]
+  PASS PM13: 10 rows in 1421.9ms [Chemical → Articles (reverse)]
+  PASS PM14: 10 rows in 1396.1ms [Journal → Articles (reverse)]
+  PASS PM15: 10 rows in 1344.4ms [Co-authors of an article]
+  PASS PM16: 10 rows in 1321.6ms [Citation chain (who cites my citers)]
+  PASS PM17: 1 rows in 1330.7ms [Articles citing a specific article]
+  PASS PM18: 10 rows in 1311.4ms [Articles cited by a specific article]
+  PASS PM19: 10 rows in 17374.1ms [MeSH co-occurrence (Neoplasms)]
+  PASS PM20: 10 rows in 6585.9ms [MeSH co-occurrence (Diabetes)]
+  PASS PM21: 10 rows in 2078.2ms [Chemical co-occurrence via articles]
+  PASS PM22: 10 rows in 1267.2ms [Author collaboration network]
+  PASS PM23: 10 rows in 26872.4ms [Top authors by paper count]
+  PASS PM24: 10 rows in 36962.1ms [Most cited articles (fan-in)]
+  PASS PM25: 18 rows in 1548.1ms [Publication trend by year for a MeSH term]
+  PASS PM26: 10 rows in 4763.3ms [Journals publishing most cancer research]
+  PASS PM27: 10 rows in 4014.4ms [Funding agencies for cancer research]
+  ERROR PM28: Query error: Runtime error: Query timed out [150804.7ms]
+  PASS PM29: 10 rows in 9966.8ms [Grant agencies funding diabetes research]
+  PASS PM30: 10 rows in 5525.4ms [Most published journals overall]
+  PASS PM31: 10 rows in 2097.3ms [Chemical mentions in Nature articles]
+  PASS PM32: 10 rows in 62501.6ms [MeSH terms for NIH-funded articles]
+  PASS PM33: 7 rows in 1314.2ms [Authors publishing in a specific journal]
+  PASS PM34: 10 rows in 26018.7ms [Multi-MeSH article (articles with 5+ MeSH terms)]
+  PASS PM35: 10 rows in 5587.1ms [Prolific authors in machine learning]
+  PASS CT01: 10 rows in 2041.6ms [Trial interventions (sample)]
+  PASS CT02: 10 rows in 1476.8ms [Trial adverse events (sample)]
+  PASS CT03: 10 rows in 1472.4ms [Trial sites (sample)]
+  PASS CT04: 10 rows in 1472.1ms [Trial outcomes (sample)]
+  PASS CT05: 10 rows in 1474.3ms [Trial sponsors (sample)]
+  PASS CT06: 10 rows in 1472.2ms [Trial conditions (sample)]
+  PASS CT07: 10 rows in 1479.6ms [Trial arm groups]
+  PASS CT08: 15 rows in 15076.0ms [Trials per country]
+  PASS CT09: 15 rows in 10546.3ms [Most common interventions]
+  PASS CT10: 15 rows in 18879.2ms [Most common adverse events]
+  PASS CT11: 15 rows in 8283.8ms [Most studied conditions]
+  PASS CT12: 10 rows in 7062.1ms [Top sponsors]
+  PASS CT13: 10 rows in 102465.6ms [Interventions for cancer trials]
+  PASS CT14: 10 rows in 111792.2ms [Adverse events for diabetes trials]
+  PASS CT15: 1 rows in 16207.4ms [Sites running the most trials]
+  PASS CT16: 10 rows in 110716.5ms [Condition → Intervention → AE chain]
+  PASS CT17: 10 rows in 102584.1ms [Sponsors funding cancer research]
+  EMPTY CT18: 0 rows in 8172.1ms [Drug-coded trials]
+  PASS CT19: 10 rows in 1581.5ms [Trial publications]
+  EMPTY CT20: 0 rows in 119075.0ms [Multi-arm trials with adverse events]
+  PASS PW01: 10 rows in 1928.2ms [Protein interactions (sample)]
+  PASS PW02: 10 rows in 1335.8ms [Pathway proteins via PARTICIPATES_IN]
+  PASS PW03: 9 rows in 1328.7ms [Pathway by name]
+  PASS PW04: 1 rows in 1267.5ms [Protein by name]
+  PASS PW05: 10 rows in 1572.6ms [Largest pathways by protein count]
+  PASS PW06: 10 rows in 1656.3ms [Most connected proteins (interaction hub)]
+  PASS PW07: 10 rows in 1288.5ms [Protein → Pathway → Sibling proteins]
+  PASS PW08: 10 rows in 1294.3ms [GO term annotations for proteins]
+  PASS PW09: 10 rows in 1401.9ms [Reactions catalyzed by a protein]
+  PASS PW10: 10 rows in 1411.3ms [Protein complexes]
+  PASS PW11: 10 rows in 1294.5ms [Pathway hierarchy (parent-child)]
+  PASS PW12: 10 rows in 101029.4ms [Regulation targets]
+  PASS PW13: 10 rows in 103979.8ms [Shared pathways between interacting proteins]
+  PASS PW14: 20 rows in 1898.7ms [Proteins in immune system pathway]
+  PASS PW15: 10 rows in 1292.7ms [Protein interaction network depth 2]
+  PASS DI01: 10 rows in 1298.8ms [Drug side effects (sample)]
+  PASS DI02: 10 rows in 1300.0ms [Drug-gene interactions (sample)]
+  PASS DI03: 10 rows in 1295.1ms [Drug indications (sample)]
+  PASS DI04: 10 rows in 1292.0ms [Drug adverse events (sample)]
+  EMPTY DI05: 0 rows in 101042.3ms [Drug adverse events with gene targets]
+  PASS DI06: 10 rows in 2023.4ms [Drugs with most side effects]
+  PASS DI07: 10 rows in 1475.4ms [Most common side effects]
+  PASS DI08: 10 rows in 1307.2ms [Drugs sharing a gene target]
+  PASS DI09: 10 rows in 1298.2ms [Drugs for a specific indication]
+  PASS DI10: 10 rows in 1288.2ms [Side effects shared between two drugs]
+  PASS DI11: 1 rows in 1349.8ms [Genes targeted by most drugs]
+  PASS DI12: 1 rows in 1328.5ms [Most common adverse events]
+  PASS DI13: 10 rows in 101005.5ms [Drug with indications and side effects]
+  PASS DI14: 10 rows in 101595.2ms [Drugs with both gene targets and adverse events]
+  PASS DI15: 10 rows in 101392.0ms [Cancer drug side effects]
+  EMPTY XK01: 0 rows in 90420.1ms [Article → Trial links (sample)]
+  EMPTY XK02: 0 rows in 4227.2ms [Cancer articles → Trial interventions]
+  EMPTY XK03: 0 rows in 2134.0ms [Diabetes articles → Trial interventions]
+  EMPTY XK04: 0 rows in 2115.8ms [Heart disease articles → Trial adverse events]
+  EMPTY XK05: 0 rows in 1554.5ms [Aspirin articles → Trials]
+  EMPTY XK06: 0 rows in 1405.4ms [Metformin articles → Trial adverse events]
+  EMPTY XK07: 0 rows in 3277.0ms [Trial sites for cancer research]
+  EMPTY XK08: 0 rows in 10791.1ms [NCI-funded articles → Trial interventions]
+  EMPTY XK09: 0 rows in 93539.6ms [Articles linked to trials (count)]
+  EMPTY XK10: 0 rows in 2238.3ms [Asthma articles → Trial interventions]
+  EMPTY XK11: 0 rows in 2408.6ms [HIV articles → Trial sites by country]
+  EMPTY XK12: 0 rows in 2011.5ms [Alzheimer articles → Trial interventions]
+  EMPTY XK13: 0 rows in 8535.6ms [NHLBI-funded articles → Trial adverse events]
+  EMPTY XK14: 0 rows in 1496.5ms [Chemical → Article → Trial → Sponsor]
+  EMPTY XK15: 0 rows in 3177.4ms [MeSH → Article → Trial → Outcome]
+  PASS HD01: 3 rows in 1289.5ms [Country by ISO code]
+  PASS HD02: 3 rows in 1277.7ms [Country by name]
+  PASS HD03: 13 rows in 1303.0ms [All regions]
+  PASS HD04: 6 rows in 1737.8ms [Countries in a region]
+  PASS HD05: 1 rows in 1281.4ms [GNI per capita for India (latest)]
+  PASS HD06: 5 rows in 1281.8ms [India poverty rate trend]
+  PASS HD07: 5 rows in 1287.9ms [PM2.5 air pollution for India]
+  PASS HD08: 10 rows in 1445.7ms [Energy use per capita top 10]
+  PASS HD09: 5 rows in 1320.6ms [Stunting prevalence Nigeria]
+  PASS HD10: 8 rows in 1414.4ms [Countries with high stunting (>30%)]
+  PASS HD11: 10 rows in 1583.5ms [Population top 10 countries]
+  PASS HD12: 10 rows in 1290.4ms [Life expectancy Brazil trend]
+  PASS HD13: 10 rows in 1587.7ms [Infant mortality worst countries]
+  PASS HD14: 10 rows in 1564.0ms [Water stress high countries]
+  PASS HD15: 10 rows in 1517.4ms [Safe drinking water lowest]
+  PASS HD16: 11 rows in 1324.1ms [India all indicators for 2022]
+  PASS HD17: 4 rows in 1284.9ms [India environmental profile]
+  PASS HD18: 10 rows in 103109.9ms [Poverty vs life expectancy (cross-indicator)]
+  PASS HD19: 10 rows in 101763.2ms [Health expenditure vs infant mortality]
+  PASS HD20: 7 rows in 102636.7ms [Regional average GNI per capita]
+  PASS HS01: 3 rows in 1331.9ms [Country by ISO code]
+  PASS HS02: 14 rows in 1315.9ms [SPAR scores for India]
+  PASS HS03: 14 rows in 1305.0ms [SPAR scores for Nigeria]
+  PASS HS04: 10 rows in 1313.0ms [Top 10 countries by surveillance capacity]
+  PASS HS05: 10 rows in 1307.4ms [Countries with lowest lab capacity]
+  PASS HS06: 10 rows in 1309.8ms [Average SPAR score per country (2023)]
+  PASS HS07: 10 rows in 1307.1ms [Countries with lowest avg SPAR]
+  PASS HS08: 4 rows in 1319.7ms [India SPAR trend over years]
+  PASS HS09: 10 rows in 1379.0ms [Capacity gap: risk communication below 40]
+  PASS HS10: 4 rows in 1314.1ms [Count countries per SPAR year]
+  PASS PH01: 14 rows in 2615.0ms [India vulnerability + SPAR capacity]
+  PASS PH02: 20 rows in 2787.9ms [High poverty countries SPAR scores]
+  PASS PH03: 5 rows in 2703.6ms [PM2.5 vs surveillance capacity]
+  PASS PH04: 10 rows in 101331.8ms [Water stress + health expenditure]
+  PASS PH05: 10 rows in 101800.4ms [Stunting + infant mortality correlation]
+  PASS PH06: 10 rows in 103953.2ms [Urbanization vs life expectancy]
+  PASS PH07: 10 rows in 99845.3ms [Under-5 mortality + safe water access]
+  PASS PH08: 20 rows in 2975.7ms [Low income full profile]
+  PASS PH09: 10 rows in 102849.3ms [Health expenditure vs infant mortality]
+  PASS PH10: 8 rows in 1336.0ms [Nigeria full determinants profile]
+  PASS EX01: 1 rows in 58321.5ms [PubMed article count]
+  PASS EX02: 1 rows in 1359.3ms [MeSH term count]
+  PASS EX03: 1 rows in 1377.0ms [Journal count]
+  PASS EX04: 8 rows in 46110.1ms [Articles by year distribution]
+  ERROR EX05: Query error: Runtime error: Query timed out [120040.1ms]
+  ERROR EX06: Query error: Runtime error: Query timed out after 5 rows [758982.1ms]
+  PASS EX07: 10 rows in 12530.3ms [MeSH terms co-occurrence]
+  PASS EX08: 10 rows in 1636.8ms [Chemical → Journal pathway]
+  PASS EX09: 10 rows in 11862.1ms [Clinical trial sponsors top 10]
+  PASS EX10: 10 rows in 11369.6ms [Trials by country (via sites)]
+  PASS EX11: 10 rows in 8591.1ms [Conditions with most trials]
+  PASS EX12: 10 rows in 14296.4ms [Interventions with most trials]
+  PASS EX13: 1 rows in 6049.6ms [Protein interaction count (STRING)]
+  PASS EX14: 5 rows in 1393.7ms [GO term hierarchy depth]
+  PASS EX15: 10 rows in 1679.1ms [Pathway with most proteins]
+  PASS EX16: 10 rows in 1472.2ms [Drug with most gene interactions]
+  PASS EX17: 10 rows in 1407.3ms [Drug with most side effects]
+  PASS EX18: 10 rows in 1440.0ms [Most common side effects]
+  PASS EX19: 10 rows in 1426.8ms [Drug → Gene targets (top by interaction count)]
+  PASS EX20: 10 rows in 104522.5ms [Drug side effects → Gene targets for same drug]
+  PASS EX21: 10 rows in 9974.3ms [Surveillance: cholera outbreaks top countries]
+  PASS EX22: 10 rows in 97286.0ms [Surveillance: vaccine coverage vs outbreaks]
+  PASS EX23: 10 rows in 9719.9ms [Surveillance: TB incidence trend India]
+  PASS EX24: 10 rows in 1553.5ms [Health Determinants: Gini inequality top 10]
+  PASS EX25: 10 rows in 89718.1ms [Health Determinants: forest area vs PM2.5]
+  PASS EX26: 10 rows in 96301.8ms [Health Determinants: fertility vs infant mortality]
+  PASS EX27: 10 rows in 1623.5ms [Health Systems: workforce density top physicians]
+  PASS EX28: 10 rows in 1601.7ms [Health Systems: workforce density lowest nurses]
+  PASS EX29: 1 rows in 3905.7ms [6KG: India full profile (determinants + systems + surveillance)]
+  PASS EX30: 1 rows in 3910.4ms [6KG: Nigeria full profile]
+  PASS EX31: 4 rows in 2991.0ms [6KG: poverty → disease burden correlation]
+  PASS EX32: 10 rows in 3462.8ms [6KG: stunting → vaccine coverage]
+  PASS EX33: 5 rows in 6256.2ms [6KG: water stress → disease outbreaks]
+  PASS EX34: 10 rows in 5967.3ms [6KG: physician density → infant mortality]
+  PASS EX35: 10 rows in 5602.2ms [6KG: SPAR capacity → disease reports]
+  PASS EX36: 10 rows in 3033.7ms [6KG: health expenditure → SPAR capacity]
+  PASS EX37: 9 rows in 3876.8ms [6KG: urbanization vs disease reports]
+  PASS EX39: 10 rows in 1720.6ms [Proteins in signaling pathways]
+  PASS EX40: 5 rows in 8371.5ms [Clinical trial conditions for tuberculosis]
+  PASS EX41: 5 rows in 1369.0ms [Drug adverse events → Surveillance disease patterns]
+  ERROR EX42: Query error: Runtime error: Query timed out [120013.3ms]
+  ERROR EX43: Query error: Runtime error: Query timed out [120006.7ms]
+  PASS EX44: 1 rows in 10574.0ms [Country node count (dedup check)]
+  EMPTY EX45: 0 rows in 1712.4ms [Health Determinants: anemia prevalence highest]
+  PASS EX46: 10 rows in 99250.9ms [Health Determinants: education vs health spend]
+  PASS EX47: 45 rows in 9688.3ms [Health Systems: SPAR capacity heatmap data]
+  PASS EX48: 10 rows in 1388.8ms [Surveillance: health indicators Brazil]
+  EMPTY EX49: 0 rows in 1344.4ms [PubMed: citation network depth (2-hop)]
+  ERROR EX50: Query error: Runtime error: Query timed out [120319.8ms]
+  PASS EX51: 17 rows in 11460.4ms [Clinical trial: phase distribution]
+  PASS EX52: 1 rows in 15345.1ms [Clinical trial: sites per trial]
+  PASS EX53: 10 rows in 7978.1ms [Drug Interactions: drugs with most indications]
+  PASS EX54: 1 rows in 2568.0ms [Pathways: proteins catalyzing reactions]
+  PASS EX55: 1 rows in 5161.6ms [6KG: Brazil full profile]
+  PASS EX56: 36 rows in 3102.3ms [6KG: low SPAR + high poverty]
+  EMPTY EX57: 0 rows in 1273.0ms [Surveillance: malaria cases Nigeria]
+  PASS EX58: 10 rows in 1433.2ms [Health Determinants: renewable energy top 10]
+  PASS EX59: 10 rows in 1545.8ms [Health Determinants: population growth fastest]
+  PASS EX60: 4 rows in 2762.9ms [6KG: comprehensive vulnerability index (poverty + SPAR)]
+  PASS EX61: 1 rows in 3794.6ms [6KG: India across all trifectas]
+
+========================================
+Results: 172/200 pass, 22 empty, 6 error
+Total time: 7079.4s
+========================================
+DONE
