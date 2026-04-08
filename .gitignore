@@ -1,1 +1,5 @@
 book/\ntarget/
+book/
+.DS_Store
+texput.log
+src/slides.html
