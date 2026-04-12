@@ -10,6 +10,7 @@
 - [Real-world Use Cases](./real_world_use_cases.md)
 
 # Part II: Benchmarks & Results
+- [Mega Benchmark (138M nodes, 1.22B edges, 500 queries, 10 KGs)](./mega_benchmark.md)
 - [Biomedical KG Benchmark (74M nodes, 1B edges, 100 queries)](./biomedical_benchmark.md)
 - [Public Health KG Benchmark (305K nodes, 40 queries)](./public_health_benchmark.md)
 - [Performance & Benchmarks (ingestion, OLTP, GPU, LDBC)](./performance_benchmarks.md)
