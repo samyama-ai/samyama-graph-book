@@ -53,6 +53,27 @@ queries:
   OM01:  { status: data_dependent, reason: "Person{person_id:'P000001'} — ID scheme" }
   EX57:  { status: data_dependent, reason: "Nigeria malaria DiseaseReport coverage" }
 
+  # ── B6: NCT bridge not loaded (requires study_references.txt) ──
+  # Article <-[:REFERENCED_IN]- ClinicalTrial is a loader-time bridge.
+  # When --study-refs is omitted, 0 REFERENCED_IN edges exist and all these empty.
+  XK01:  { status: data_dependent, reason: "REFERENCED_IN bridge: --study-refs omitted" }
+  XK02:  { status: data_dependent, reason: "REFERENCED_IN 3-hop" }
+  XK03:  { status: data_dependent, reason: "REFERENCED_IN 3-hop" }
+  XK04:  { status: data_dependent, reason: "REFERENCED_IN 3-hop" }
+  XK05:  { status: data_dependent, reason: "REFERENCED_IN 2-hop (Aspirin)" }
+  XK06:  { status: data_dependent, reason: "REFERENCED_IN 4-entity" }
+  XK07:  { status: data_dependent, reason: "REFERENCED_IN 3-hop" }
+  XK08:  { status: data_dependent, reason: "REFERENCED_IN 4-entity" }
+  XK10:  { status: data_dependent, reason: "REFERENCED_IN 3-hop (Asthma)" }
+  XK11:  { status: data_dependent, reason: "REFERENCED_IN 3-hop" }
+  XK12:  { status: data_dependent, reason: "REFERENCED_IN 3-hop" }
+  XK13:  { status: data_dependent, reason: "REFERENCED_IN 4-entity" }
+  XK14:  { status: data_dependent, reason: "REFERENCED_IN 4-entity" }
+  XK15:  { status: data_dependent, reason: "REFERENCED_IN 3-hop" }
+  MB109: { status: data_dependent, reason: "REFERENCED_IN aggregation" }
+  MB110: { status: data_dependent, reason: "REFERENCED_IN aggregation" }
+  MB153: { status: data_dependent, reason: "Drug→AdverseEvent Nausea match: data sparse" }
+
   # ── Exact-count queries (sanity — top-k with LIMIT) ──
   MB053: { status: exact, rows: 10 }
   MB111: { status: exact, rows: 10 }
