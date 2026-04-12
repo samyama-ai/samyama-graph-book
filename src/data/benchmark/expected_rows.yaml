@@ -1,0 +1,60 @@
+# Expected rows oracle for 500-query mega benchmark
+# Used by unified_benchmark.rs to distinguish engine bugs from corpus coverage gaps.
+#
+# Statuses:
+#   non_empty      — default; ≥1 row → pass
+#   data_dependent — 0 rows is acceptable (loader gap or dataset slice)
+#   aggregation    — single-row numeric result; 0-value OK
+#   exact          — must return exactly `rows`
+#   range          — row count must be in [min, max]
+#
+# Any ID not listed inherits default = non_empty.
+
+version: 1
+queries:
+  # ── B1: Drug name-case mismatch across KGs ──
+  MB020: { status: data_dependent, reason: "Drug{name:'Aspirin'} — FAERS uses 'ASPIRIN'" }
+  MB035: { status: data_dependent, reason: "Aspirin side-effects — name case" }
+  MB037: { status: data_dependent, reason: "Ibuprofen gene targets — name case" }
+  MB150: { status: data_dependent, reason: "Atorvastatin targets — name case" }
+  MB203: { status: data_dependent, reason: "Lithium — may not be in DrugBank slice" }
+  MB180: { status: data_dependent, reason: "Aspirin target overlap — cascade of B1" }
+  FA30:  { status: data_dependent, reason: "ASPIRIN (FAERS) → Aspirin (DrugBank) bridge" }
+
+  # ── B2: Loader / KG coverage gaps ──
+  CT18:  { status: data_dependent, reason: "CODED_AS_DRUG not emitted by CT loader" }
+  DI05:  { status: data_dependent, reason: "HAS_SIDE_EFFECT from Drug side — SIDER only" }
+  MB042: { status: data_dependent, reason: "India NY.GDP.PCAP.CD — WorldBank coverage" }
+  MB043: { status: data_dependent, reason: "India SP.DYN.LE00.IN — WorldBank coverage" }
+  MB065: { status: data_dependent, reason: "VaccineCoverage loader gap" }
+  MB076: { status: data_dependent, reason: "WATER_RESOURCE_OF loader pending" }
+  MB101: { status: data_dependent, reason: "Complex→Pathway :COMPONENT_OF missing" }
+  MB107: { status: data_dependent, reason: "income_level + SPAR 2023" }
+  MB108: { status: data_dependent, reason: "income_level + SP.DYN.LE00.IN 2022" }
+  MB118: { status: data_dependent, reason: "India GDP 2022 + disease reports" }
+  MB119: { status: data_dependent, reason: "Aspirin cascade (B1)" }
+  MB128: { status: data_dependent, reason: "Bioactivity KG not loaded" }
+  MB130: { status: data_dependent, reason: "HealthWorkforce loader pending" }
+  MB156: { status: data_dependent, reason: "SPAR C01 2023 filter" }
+  MB161: { status: data_dependent, reason: "Trial MeSH codes loader gap" }
+  MB173: { status: data_dependent, reason: "HealthWorkforce physician match" }
+
+  # ── B3/B4: Point-lookup / cross-KG cascade misses ──
+  PM10:  { status: data_dependent, reason: "PMID 20000334 has no Grant edges" }
+  MB063: { status: data_dependent, reason: "Disease CONTAINS 'Malaria' — case" }
+  MB064: { status: data_dependent, reason: "Disease→DiseaseReport aggregation coverage" }
+  MB066: { status: data_dependent, reason: "Aspirin → Gene → Protein cascade (B1)" }
+  MB068: { status: data_dependent, reason: "NCT00000102 REFERENCED_IN lookup" }
+  MB070: { status: data_dependent, reason: "SPAR × GDP correlation chain" }
+  MB071: { status: data_dependent, reason: "Aspirin full profile (B1)" }
+  MB080: { status: data_dependent, reason: "SPAR vs GDP correlation" }
+  MB112: { status: data_dependent, reason: "PMID 30571862 co-citation coverage" }
+  MB113: { status: data_dependent, reason: "Author 'Smith J' exact match" }
+  OM01:  { status: data_dependent, reason: "Person{person_id:'P000001'} — ID scheme" }
+  EX57:  { status: data_dependent, reason: "Nigeria malaria DiseaseReport coverage" }
+
+  # ── Exact-count queries (sanity — top-k with LIMIT) ──
+  MB053: { status: exact, rows: 10 }
+  MB111: { status: exact, rows: 10 }
+  EX06:  { status: range, min: 1, max: 5 }
+  EX49:  { status: range, min: 1, max: 10 }
