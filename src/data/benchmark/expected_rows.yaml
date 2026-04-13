@@ -74,6 +74,14 @@ queries:
   MB110: { status: data_dependent, reason: "REFERENCED_IN aggregation" }
   MB153: { status: data_dependent, reason: "Drug→AdverseEvent Nausea match: data sparse" }
 
+  # ── B7: OMOP depression comorbidities (post parser-fix, ADR-017 Phase 3b deferred) ──
+  # OM27 ran to timeout in v1-v6 because a parser bug dropped the first WHERE.
+  # After fix/multi-where-merge, the query completes in ~80s with 0 rows —
+  # the OMOP slice used in the mega benchmark has no Persons whose
+  # condition_concept CONTAINS 'Depression'. OM26 (same shape, 'Asthma' filter)
+  # returns 10 rows on the same data, confirming engine correctness.
+  OM27:  { status: data_dependent, reason: "OMOP slice has no Depression cases; query logic verified via OM26 (Asthma)" }
+
   # ── Exact-count queries (sanity — top-k with LIMIT) ──
   MB053: { status: exact, rows: 10 }
   MB111: { status: exact, rows: 10 }
