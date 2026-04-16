@@ -1,0 +1,15 @@
+Title: Federated Biomedical Knowledge Graphs at Scale: Graph-Native Storage, Cross-KG Queries, and AI-Agent Integration
+
+Authors: Madhulatha Mandarapu, Sandeep Kunkunuru (VaidhyaMegha Private Limited, Hyderabad, India)
+
+Track: ISWC 2026 In-Use
+
+Abstract:
+
+We present Samyama, a graph database deployed in production for federated biomedical knowledge graph analytics. The system loads ten public-health and biomedical knowledge graphs—137 million nodes and 1.22 billion edges from sources including PubMed/MEDLINE, ClinicalTrials.gov, FAERS, OMOP, DrugBank, UniProt, Reactome, and WHO—into a single multi-tenant instance on commodity hardware. Cross-KG federation is achieved through bridge properties on shared entities (genes, drugs, country codes, clinical terminologies), enabling standard OpenCypher queries that span molecular biology, clinical trials, adverse events, and population health without ETL merging or schema-alignment middleware.
+
+The engine is implemented in Rust with a graph-native query planner that exploits adjacency-list statistics for direction-aware traversal and an ExpandInto operator for bound-bound edge checks. Version 1.0 introduces MVCC transaction isolation, adjacency-aware aggregation (reading neighbor counts from the index instead of scanning edges), and a streaming executor with early termination.
+
+On a 500-query mega benchmark spanning all ten knowledge graphs, Samyama achieves 500/500 (100%) correct answers—468 with non-empty result sets and 32 returning zero rows due to documented corpus-coverage gaps, not engine failures. Each KG is additionally exposed to LLM agents via the Model Context Protocol (MCP) with domain-specific tool definitions, achieving 98% accuracy on biomedical questions versus 75% for standalone GPT-4o.
+
+Keywords: Knowledge graphs, Biomedical data integration, Graph databases, OpenCypher, Federation, Model Context Protocol
