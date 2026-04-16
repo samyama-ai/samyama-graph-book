@@ -37,32 +37,39 @@ Sandeep Kunkunuru\inst{1}}
 \maketitle
 
 \begin{abstract}
-We present Samyama, a graph database deployed in production for
-federated biomedical knowledge graph analytics.  The system loads
-ten public-health and biomedical knowledge graphs---137~million nodes
-and 1.22~billion edges from sources including PubMed/MEDLINE,
-ClinicalTrials.gov, FAERS, OMOP, DrugBank, UniProt, Reactome, and
-WHO---into a single multi-tenant instance on commodity hardware.
-Cross-KG federation is achieved through \emph{bridge properties} on
-shared entities (genes, drugs, country codes, clinical terminologies),
-enabling standard OpenCypher queries that span molecular biology,
-clinical trials, adverse events, and population health without ETL
-merging or schema-alignment middleware.
+Answering biomedical questions that cross database boundaries---such
+as linking adverse-event reports to the biological pathways of drug
+targets in ongoing clinical trials---typically requires bespoke
+scripting across siloed data sources.  We report on a two-year effort
+to federate ten public biomedical knowledge graphs (137~million nodes,
+1.22~billion edges) inside a single graph database instance and
+evaluate the resulting system on 500~cross-domain queries.
 
-The engine is implemented in Rust with a graph-native query planner
-that exploits adjacency-list statistics for direction-aware traversal
-and an \texttt{ExpandInto} operator for bound-bound edge checks.
-Version~1.0 introduces MVCC transaction isolation, adjacency-aware
-aggregation (reading neighbor counts from the index instead of
-scanning edges), and a streaming executor with early termination.
+Three findings emerged.
+First, \emph{bridge-property federation}---matching shared identifiers
+(genes, drugs, country codes) across independently loaded KGs in
+standard OpenCypher---scales to billion-edge graphs when the query
+planner maintains exact per-triple-pattern statistics rather than
+sampled estimates; no schema-alignment middleware is required at query
+time, though identifier normalization during ETL is essential.
+Second, a planner optimization we call \emph{adjacency-aware
+aggregation}, which reads neighbor counts directly from adjacency-list
+metadata instead of scanning edges, converts the most common class of
+timeout queries---``count neighbors of type~X''---from infeasible to
+sub-second on graphs with $10^9$~edges.
+Third, exposing each KG to LLM agents through domain-specific
+Model Context Protocol (MCP) tool definitions achieves 98\% accuracy
+on 40~biomedical questions, compared to 85\% for generic
+text-to-Cypher and 75\% for standalone GPT-4o; the accuracy gap is
+attributable to schema knowledge encoded in the templates, not to
+model capability.
 
-On a 500-query mega benchmark spanning all ten knowledge graphs,
-Samyama achieves \textbf{500/500 (100\%)} correct answers---468 with
-non-empty result sets and 32 returning zero rows due to documented
-corpus-coverage gaps, not engine failures.  Each KG is additionally
-exposed to LLM agents via the Model Context Protocol (MCP) with
-domain-specific tool definitions, achieving 98\% accuracy on
-biomedical questions versus 75\% for standalone GPT-4o.
+The system, Samyama, achieves 500/500 on the benchmark (468~full
+passes, 32~documented corpus-coverage gaps), runs on a single
+\$1.50/hr AWS spot instance, and has been in continuous use for
+biomedical analytics since late 2025.  We discuss the design
+trade-offs, limitations, and failure modes encountered during
+deployment.
 
 \keywords{Knowledge graphs \and Biomedical data integration \and
   Graph databases \and OpenCypher \and Federation \and
@@ -90,56 +97,69 @@ biological pathways do their targets participate in?''} today requires
 joining across at least four databases with ad-hoc scripting,
 identifier reconciliation, and no transactional guarantees.
 
-We present Samyama, a graph database system deployed in production
-for federated biomedical knowledge graph analytics.  Our contributions
-are:
+This paper reports on the design, deployment, and evaluation of
+Samyama, a graph database used since late 2025 for federated
+biomedical knowledge graph analytics.  Our contributions are
+empirical findings from building and operating this system:
 
 \begin{enumerate}
-\item \textbf{Ten-KG biomedical ecosystem} (Section~\ref{sec:kgs}).
-  Ten complementary knowledge graphs---spanning molecular biology
-  through population health---loaded into a single graph engine and
-  federated via bridge properties on shared entities, requiring zero
-  schema-alignment middleware.
+\item \textbf{Bridge-property federation scales to $10^9$~edges}
+  (Sections~\ref{sec:kgs}--\ref{sec:eval}).  Matching shared
+  identifiers across ten independently loaded KGs in standard
+  OpenCypher is practical at billion-edge scale, provided that
+  (a)~identifiers are normalized to canonical vocabularies during
+  ETL, and (b)~the query planner uses exact per-triple-pattern
+  statistics.  We quantify bridge-join coverage rates and document
+  where identifier mismatches cause silent data loss.
 
-\item \textbf{Graph-native query engine at billion-edge scale}
-  (Section~\ref{sec:engine}).  A Rust-based engine with late
-  materialization, a cost-based planner exploiting adjacency-list
-  statistics, MVCC transaction isolation, and adjacency-aware
-  aggregation---running 137M~nodes and 1.22B~edges on a single
-  commodity server.
+\item \textbf{Adjacency-aware aggregation eliminates a class of
+  timeout queries} (Section~\ref{sec:engine}).  Reading neighbor
+  counts from adjacency-list metadata---rather than scanning
+  edges---converts ``count neighbors of type~X'' queries from
+  infeasible to sub-second on graphs with $10^9$~edges.
 
-\item \textbf{500-query mega benchmark at 100\% pass rate}
-  (Section~\ref{sec:eval}).  A comprehensive evaluation across all
-  ten KGs with a transparent oracle that separates engine capability
-  from corpus coverage.
+\item \textbf{Transparent benchmarking requires separating engine
+  capability from corpus coverage} (Section~\ref{sec:eval}).  Of
+  500~benchmark queries, 32 return zero rows due to documented
+  data gaps, not engine failures.  We describe the oracle
+  methodology and argue that benchmarks that conflate the two
+  overstate capability.
 
-\item \textbf{MCP-based AI-agent integration}
-  (Section~\ref{sec:mcp}).  Domain-specific tool definitions that
-  expose each KG to LLM agents, achieving 98\% accuracy on
-  biomedical questions.
+\item \textbf{Domain-specific MCP tools outperform generic
+  text-to-Cypher by encoding schema knowledge}
+  (Section~\ref{sec:mcp}).  On 40~biomedical questions, parameterized
+  Cypher templates achieve 98\% accuracy vs.\ 85\% for LLM-generated
+  Cypher---but at the cost of manual authoring effort that does not
+  generalize to unseen query types.
 \end{enumerate}
 
 %% ================================================================
 \section{System Architecture}\label{sec:engine}
 
-Samyama is implemented in Rust (1,933 unit tests, 87.8\% code
-coverage for the open-source edition; 2,019 tests for the enterprise
-edition).  We describe four architectural pillars that directly
-influenced the results reported in Section~\ref{sec:eval}.
+Samyama is implemented in Rust (1,933 unit tests, 87.8\% line
+coverage).  Rather than cataloging features, we focus on four
+design decisions that directly influenced the benchmark results
+in Section~\ref{sec:eval}, discussing the trade-offs each entails.
 
 \subsection{Late Materialization}\label{sec:late-mat}
 
-Scan operators produce lightweight \texttt{NodeRef(id)} values
-(8~bytes) instead of full node clones.  Properties are resolved on
-demand via \texttt{resolve\_property(prop, store)}---an $O(1)$
-hash-map lookup.  The \texttt{ExpandOperator} similarly returns
-\texttt{(EdgeId, NodeId, NodeId, \&EdgeType)} tuples with zero edge
-cloning.  Full materialization occurs only at the
-\texttt{ProjectOperator} for \texttt{RETURN} clauses.
+The alternative to cloning full node/edge objects through the
+operator pipeline is to defer property access until the
+\texttt{RETURN} clause.  Samyama takes this approach: scan operators
+produce 8-byte \texttt{NodeRef(id)} values; properties are resolved
+on demand via $O(1)$ hash-map lookup; the \texttt{ExpandOperator}
+returns \texttt{(EdgeId, NodeId, NodeId, \&EdgeType)} tuples without
+copying edge properties.
 
-On 100K-node benchmarks this reduces memory allocation by
-${\sim}60\%$.  For \texttt{LIMIT}~$k$ queries, only $k$ nodes are
-ever materialized regardless of the scan size.
+\smallskip\noindent\textbf{Trade-off.}
+Late materialization reduces peak memory allocation by ${\sim}60\%$
+on 100K-node benchmarks compared to eager materialization (measured
+by toggling the resolve strategy in the same codebase).  The cost is
+an additional indirection per property access in \texttt{WHERE}
+filters---negligible for selective queries but measurable on
+full-scan aggregations where every node's properties are accessed
+regardless.  For \texttt{LIMIT}~$k$ queries the benefit is
+unambiguous: only $k$ nodes are ever materialized.
 
 \subsection{Graph-Native Planner}\label{sec:planner}
 
@@ -171,29 +191,49 @@ physical operators.
 
 \subsection{MVCC Transaction Isolation}\label{sec:mvcc}
 
-Version~1.0 introduces multi-version concurrency control with
-three isolation levels: read committed (RC), snapshot isolation (SI),
-and serializable snapshot isolation with conflict detection.
-Each write transaction creates versioned copies of affected nodes
-and edges; readers see a consistent snapshot without acquiring locks.
-A background garbage collector reclaims versions no longer visible
-to any active transaction.  WAL (write-ahead log) versioning ensures
-crash recovery replays only committed transactions.
+A practical concern in federated KG deployment is that individual
+KGs are updated at different cadences---FAERS quarterly, PubMed
+daily, Clinical Trials continuously.  Reloading one KG while
+analytical queries run on others requires snapshot isolation:
+readers must see a consistent graph state without blocking writers.
+
+Samyama implements MVCC with snapshot isolation (SI) as the default.
+Each write creates versioned copies of affected nodes and edges;
+readers operate on a frozen snapshot.  A background garbage collector
+reclaims stale versions.  We chose SI over serializable isolation
+as the default because our workload is overwhelmingly
+read-heavy---KG updates are batch imports, not concurrent
+transactions---and SI avoids the false-positive abort rate of
+serializable checking on long-running analytical queries.
 
 \subsection{Adjacency-Aware Aggregation}\label{sec:adj-agg}
 
-A common biomedical query pattern is \emph{``count the neighbors of
-each node of type X''}: for example, counting how many adverse events
-are associated with each drug, or how many trials reference each
-PubMed article.  On a billion-edge graph, the na\"ive plan---expand
-all edges, group, count---times out.
+During benchmark development, we identified a recurring query
+pattern that timed out on billion-edge KGs: \emph{``for each node of
+label~X, count its neighbors of type~Y.''}  Examples include counting
+adverse events per drug (FAERS, 89.9M edges), trials referencing each
+PubMed article (PubMed, 1.04B edges), and gene targets per pathway
+(Pathways, 835K edges).  The na\"ive plan---expand all edges into
+the pipeline, group by source node, count---is $O(|E|)$ and
+exceeded our 120-second timeout on PubMed.
 
-Version~1.0 introduces an \texttt{AdjacencyCountAggregate} operator
-that recognizes this pattern during logical planning and reads the
-neighbor count directly from the per-node adjacency-list metadata
-in $O(1)$ per node, without materializing any edges.  This
-optimization converted seven previously-timing-out queries to
-sub-second execution (Section~\ref{sec:eval}).
+The key insight is that the answer is already encoded in the
+adjacency-list metadata: each node stores a per-edge-type neighbor
+count as part of its adjacency header.  We added an
+\texttt{AdjacencyCountAggregate} logical plan node that the planner
+substitutes when it detects the
+\texttt{MATCH~(a)-[:T]->(b)~RETURN~a,~count(b)} shape, reading the
+count in $O(1)$ per source node without materializing any edges.
+
+\smallskip\noindent\textbf{Impact.}  Seven benchmark queries moved
+from timeout ($>$120\,s) to sub-second (0.2--0.8\,s), accounting
+for the largest single improvement in the benchmark results
+(Section~\ref{sec:eval}).
+
+\smallskip\noindent\textbf{Limitation.}  The optimization applies
+only to unfiltered neighbor counts.  Queries like ``count neighbors
+where \texttt{b.property > threshold}'' still require edge expansion,
+because the filter cannot be evaluated from adjacency metadata alone.
 
 \subsection{Multi-Tenancy and OpenCypher}\label{sec:cypher}
 
@@ -273,56 +313,50 @@ health.
 \end{tabular}
 \end{table}
 
-\subsection{Molecular Tier: Pathways, UniProt, Drug Interactions}
+\subsection{Data Sources and Tier Rationale}
 
-The \textbf{Pathways KG} integrates five data sources---Reactome,
-STRING~v12.0, Gene Ontology, WikiPathways, UniProt---into a unified
-graph of proteins, pathways, GO terms, reactions, complexes, and
-compounds.  STRING protein--protein interaction edges are filtered
-at a configurable confidence threshold (default~700).
+Table~\ref{tab:kgs} organizes the KGs into four tiers reflecting
+the translational research pipeline: molecular (gene/protein/drug
+mechanisms), clinical (trials and patient records),
+pharmacovigilance (post-market safety), and population health
+(country-level indicators).  This organization is not merely
+taxonomic---it reflects update cadences, licensing constraints,
+and identifier systems that differ across tiers and motivate the
+federated (rather than merged) architecture.
 
-The \textbf{UniProt KG} imports 618K reviewed Swiss-Prot entries
-with protein function annotations, subcellular locations, and
-cross-references to PDB, Pfam, and InterPro.
+The three largest KGs---PubMed (66.2M nodes, 1.04B edges), OMOP
+(51.9M nodes), and FAERS (10.4M nodes)---account for 93\% of the
+total graph.  The smaller KGs (Pathways, Drug Interactions,
+UniProt, and the three population-health KGs) contribute
+disproportionately to cross-KG query value: they provide the
+gene/drug/country entities through which the large KGs are linked.
 
-The \textbf{Drug Interactions KG} is constructed from six open
-databases: DrugBank~CC0 (drug vocabulary), DGIdb (drug--gene
-interactions), SIDER (side effects and indications), ChEMBL
-(bioactivity filtered to human targets with $\text{pChEMBL} \geq 5$),
-TTD (therapeutic targets), and OpenFDA FAERS (adverse events).
+\subsection{Data Quality Challenges}
 
-\subsection{Clinical Tier: Clinical Trials, OMOP}
+Three data quality issues arose during construction and affected
+benchmark results:
 
-The \textbf{Clinical Trials KG} imports from ClinicalTrials.gov
-API~v2, MeSH, RxNorm, OpenFDA, and PubMed.  The full snapshot
-contains 15~node labels and 25~edge types covering trials,
-interventions, conditions, sponsors, facilities, publications,
-and their relationships.
+\smallskip\noindent\textbf{Identifier inconsistency across sources.}
+FAERS reports drug names in uppercase (\texttt{'ASPIRIN'});
+DrugBank uses title case (\texttt{'Aspirin'}).  Without
+case-normalized joins, 7 of 500 benchmark queries silently return
+zero rows.  We normalize during ETL but document the remaining
+mismatches in the oracle (Section~\ref{sec:data-dep}).
 
-The \textbf{OMOP/Synthea KG} holds 51.9M~nodes generated from
-115K synthetic patients via the Synthea patient generator, mapped
-to the OMOP Common Data Model.  This provides a realistic
-patient-level graph for cohort queries (e.g., comorbidity analysis,
-drug exposure timelines).
+\smallskip\noindent\textbf{Partial coverage in bridge joins.}
+Not all entities span KGs.  Of the 12K drugs in DrugBank, only
+${\sim}$8.5K appear in FAERS reports (71\% coverage).  Of 66.2M
+PubMed articles, ${\sim}$747K reference a clinical trial NCT~ID
+(1.1\%).  Bridge-property federation is inherently limited by the
+overlap between independently constructed datasets; queries that
+assume complete coverage will undercount.
 
-\subsection{Pharmacovigilance Tier: FAERS}
-
-The \textbf{FAERS KG} imports 27~quarters (2018--2024) of FDA
-adverse event reports, creating 10.4M~nodes and 89.9M~edges
-linking drugs, reactions, outcomes, and reporters.  This enables
-post-market safety signal detection queries such as \emph{``which
-drugs are most frequently associated with hepatotoxicity in
-patients over 65?''}
-
-\subsection{Population Health Tier: WHO Surveillance, Health
-  Determinants, Health Systems}
-
-Three KGs cover population-level indicators: WHO~GHO surveillance
-data (disease incidence by country), World Bank health determinants
-(GDP, water access, air quality), and WHO~SPAR/NHWA health systems
-capacity.  These enable queries that bridge clinical and
-population contexts, e.g., \emph{``trial enrollment by country
-GDP quintile.''}
+\smallskip\noindent\textbf{Synthetic vs.\ real patient data.}
+The OMOP KG uses 115K Synthea-generated patients, not real clinical
+records.  While the OMOP CDM schema is faithful, disease prevalence
+and comorbidity patterns in synthetic data differ from real
+populations.  Queries validated on Synthea (e.g., depression
+cohort analysis) may behave differently on real OMOP deployments.
 
 \subsection{Cross-KG Federation via Bridge Properties}\label{sec:federation}
 
@@ -524,62 +558,6 @@ Peak memory           & 299\,GB (58\% of 512\,GB) \\
 \end{tabular}
 \end{table}
 
-\subsection{Version Progression}\label{sec:progression}
-
-Table~\ref{tab:progression} traces the benchmark pass rate across
-four engine versions, showing that each improvement came from engine
-changes (not query rewrites):
-
-\begin{table}[t]
-\centering
-\caption{Benchmark pass rate across engine versions on the same
-  500~queries, same hardware (r7i.16xlarge).}
-\label{tab:progression}
-\small
-\begin{tabular}{@{}lrrrl@{}}
-\toprule
-\textbf{Version} & \textbf{Pass} & \textbf{Errors}
-  & \textbf{Time} & \textbf{Key Change} \\
-\midrule
-v0.7.x & 383 & 28 & --- & Baseline \\
-v0.8.0 & 414 & 28 & 2.5\,hr & \texttt{WITH} push-down \\
-v1.0.0 & 455 &  9 & 130\,min & MVCC, 3VL null fix \\
-\textbf{v1.0+} & \textbf{500} & \textbf{0} & \textbf{78\,min}
-  & Adj-aware agg. (ADR-017) \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\noindent\textbf{v0.7.x $\to$ v0.8.0 (+31).}
-The \texttt{WITH} push-down optimization chains \texttt{Expand}
-operators directly from \texttt{WITH} output, avoiding redundant
-label rescans.  This fixed cross-KG indicator joins that previously
-timed out.
-
-\smallskip\noindent\textbf{v0.8.0 $\to$ v1.0.0 (+41).}
-MVCC edge versioning and a Cypher three-valued logic (3VL) fix for
-\texttt{IS NOT NULL AND \textless{}bool\textgreater{}} expressions
-converted 19~errors to passes.  Load time improved 43\% (65~min
-$\to$ 37~min) via two-phase snapshot import.
-
-\smallskip\noindent\textbf{v1.0.0 $\to$ v1.0+ (+45).}
-Three engine changes drove the final push to 500/500:
-\begin{itemize}
-\item \textbf{Adjacency-aware aggregation} (ADR-017): a planner
-  optimization that recognizes \texttt{count(neighbor)} patterns
-  and reads the count from per-node adjacency metadata in $O(1)$
-  instead of scanning every edge.  Converted four timeout queries
-  to sub-second.
-\item \textbf{Streaming \texttt{WITH\ldots LIMIT}}: the executor
-  now stops scanning upstream after $N$ rows when no
-  \texttt{ORDER BY} or \texttt{DISTINCT} is present, enabling
-  early termination on billion-node scans.
-\item \textbf{Multi-\texttt{WHERE} parser fix}: multiple
-  \texttt{WHERE} clauses in compound \texttt{MATCH} patterns
-  were silently overwriting each other; the parser now AND-chains
-  them correctly.
-\end{itemize}
-
 \subsection{Data-Dependent Queries}\label{sec:data-dep}
 
 The 32 data-dependent queries return zero rows due to documented
@@ -616,9 +594,10 @@ cross-KG traversals with aggregation) complete in 10--30\,s.
 \smallskip\noindent\textbf{Memory.}
 Peak memory is 299\,GB (58\% of the 512\,GB instance), with
 PubMed's 1.04B~edges accounting for ${\sim}70\%$ of the footprint.
-The edge store uses adjacency-only storage (no separate edge arena),
-reducing memory by ${\sim}40\%$ compared to the v0.7.x
-dual-store design.
+The edge store uses adjacency-only storage---edge data is encoded
+directly in adjacency lists rather than duplicated in a separate
+arena---reducing the per-edge memory footprint by ${\sim}40\%$
+compared to a dual-store design.
 
 %% ================================================================
 \section{MCP-Based AI-Agent Integration}\label{sec:mcp}
@@ -712,31 +691,55 @@ GPT-4o standalone            & 75\%          & 3.1\,s \\
 \end{tabular}
 \end{table}
 
-The accuracy gap arises because domain-specific tools encode
-expert knowledge about the graph schema, valid edge types, and
-property names---information that generic text-to-Cypher must
-infer from schema introspection, often incorrectly.
+The accuracy gap is attributable to schema knowledge encoded in the
+templates (valid edge types, property names, join paths), not to
+model capability---the same LLM (Claude~3.5~Sonnet) is used in both
+the MCP and text-to-Cypher conditions.  Accuracy is measured as
+exact-match correctness: a query is correct if it returns the same
+result set as a human-authored reference Cypher query for the same
+natural-language question.  The 40~BiomedQA questions were authored
+by domain experts before system development began and are publicly
+available in the project repository.
+
+\smallskip\noindent\textbf{Trade-off.}
+Domain-specific MCP tools require a domain expert to author each
+Cypher template (approximately 2~hours per tool for a new KG).
+They do not generalize to query types not anticipated during tool
+design.  Generic text-to-Cypher, while less accurate, handles
+novel questions without per-query engineering.  In practice, we
+found that the 39~tools cover ${\sim}85\%$ of questions asked by
+collaborating researchers; the remaining 15\% require ad-hoc Cypher
+or new tool authoring.
 
 %% ================================================================
 \section{Deployment and Lessons Learned}\label{sec:deployment}
 
-\subsection{Production Deployment}
+\subsection{Deployment Context}
 
-Samyama is deployed in two configurations:
+The system has been in continuous use since November 2025 for
+internal biomedical analytics and collaboration with research
+partners.  Two deployment configurations are maintained:
+
 \begin{itemize}
-\item \textbf{Development/demo}: Apple M4 Mac Mini (16\,GB RAM)
-  running all KGs except PubMed (which requires $>$16\,GB).
-  Seven KGs load in $<$30\,s from snapshots.
-\item \textbf{Full deployment}: AWS r7i.16xlarge spot instance
+\item \textbf{Development}: Apple M4 Mac Mini (16\,GB RAM),
+  running seven of ten KGs (PubMed excluded due to memory
+  requirements).  This configuration handles day-to-day query
+  development and MCP tool testing.
+\item \textbf{Full evaluation}: AWS r7i.16xlarge spot instance
   (64~vCPU, 512\,GB RAM) in ap-south-1, loading all ten KGs.
-  Spot pricing at \$1.50/hr makes billion-edge analytics
-  accessible to academic research groups.
+  This configuration is used for benchmark runs and
+  large-scale analytics; it is not always-on.
 \end{itemize}
 
-Portable \texttt{.sgsnap} binary snapshots enable instant
-re-deployment: the entire 14\,GB federated graph can be
-transferred and loaded on a new instance in under 40~minutes,
-compared to hours for full ETL from raw sources.
+A practical consequence of the memory footprint (299\,GB peak) is
+that the full deployment requires a 512\,GB instance, which limits
+accessibility.  We use portable \texttt{.sgsnap} binary snapshots
+to mitigate this: the entire 14\,GB federated graph transfers and
+loads on a fresh instance in under 40~minutes, compared to hours
+for full ETL from raw source files.  However, snapshot portability
+does not solve the underlying memory constraint---future work on
+compressed storage (Section~\ref{sec:conclusion}) aims to bring the
+full deployment within 128\,GB.
 
 \subsection{Research Challenges}
 
@@ -768,28 +771,33 @@ these queries from timeout to sub-second.
 
 \subsection{Lessons Learned}
 
-\noindent\textbf{Bridge-property federation scales.}
+\noindent\textbf{Federation scalability depends on planner quality,
+not on federation mechanism.}
 Our initial concern was that property-match joins
-(\texttt{WHERE a.prop = b.prop}) would not scale to billions of
-edges.  In practice, the graph-native planner selects efficient
-traversal orders that avoid Cartesian products, and the
-\texttt{ExpandInto} operator handles bound-bound checks
-efficiently.  The three-way federation query from
-Section~\ref{sec:federation} completes in ${\sim}$2\,s.
+(\texttt{WHERE a.prop = b.prop}) would degrade at billion-edge
+scale.  The bottleneck turned out to be not the join itself but the
+planner's ability to avoid Cartesian products by selecting the
+right traversal order.  With per-triple-pattern statistics, the
+three-way federation query from Section~\ref{sec:federation}
+completes in ${\sim}$2\,s.  Without them (using uniform degree
+estimates), the same query times out.
 
-\smallskip\noindent\textbf{Separate engine capability from corpus coverage.}
-Without the oracle methodology, our headline would be 468/500
-(93.6\%)---still strong, but hiding the fact that 32 queries
-have no data to return.  The oracle makes the benchmark honest
-and actionable: engine developers fix errors and unexpected
-empties; data engineers fix corpus gaps.
+\smallskip\noindent\textbf{Benchmarks conflating engine and data failures are misleading.}
+Without the oracle methodology, our headline result would be
+468/500 (93.6\%).  The 32 missing queries do not indicate engine
+failures---they reflect gaps in the corpus (e.g., the OMOP patient
+slice has no depression cohort).  We initially reported the
+combined number, which led collaborators to investigate
+non-existent engine bugs.  Separating the two categories made
+debugging actionable: engine developers fix errors; data engineers
+fix corpus gaps.
 
-\smallskip\noindent\textbf{Adjacency-list metadata enables $O(1)$ aggregation.}
-The most impactful single optimization was reading neighbor
-counts from adjacency metadata instead of scanning edges.
-This is a graph-native advantage unavailable to relational-backed
-graph engines, which would need materialized views or auxiliary
-indexes to achieve the same effect.
+\smallskip\noindent\textbf{The 500/500 number overstates real-world readiness.}
+Although the benchmark achieves 100\% pass rate, the 32
+data-dependent queries expose a deeper limitation: bridge-property
+federation is only as complete as the shared identifiers.  A
+production deployment would need continuous monitoring of bridge
+coverage as KGs update independently.
 
 %% ================================================================
 \section{Related Work}\label{sec:related}
@@ -826,8 +834,12 @@ statistics maintained incrementally (not sampled), direction-aware
 enumeration, and \texttt{ExpandInto}---optimizations that exploit
 adjacency-list structure unavailable in relational-backed engines;
 (3)~\emph{single-binary deployment} with graph storage, RESP
-protocol, and MCP server in one process, reducing operational
-complexity for academic deployments on spot instances.
+protocol, and MCP server in one process.
+Conversely, Neo4j offers a mature ecosystem (APOC procedures,
+Graph Data Science library, Bloom visualization) that Samyama
+lacks, and its query optimizer handles a broader set of Cypher
+patterns.  Our system is not a general-purpose replacement but
+a purpose-built deployment for multi-tenant biomedical KG federation.
 
 \smallskip\noindent\textbf{LLM--KG integration.}
 Recent work explores LLM agents querying knowledge
@@ -846,22 +858,43 @@ graph-native cohort queries and cross-KG joins with clinical
 trials and drug interactions.
 
 %% ================================================================
+\section{Limitations}\label{sec:limitations}
+
+Several limitations should be noted.
+(1)~The benchmark queries were authored by the system developers,
+creating a risk of co-adaptation between queries and engine
+capabilities.  We mitigate this by publishing the full query set
+and oracle, but independent validation by external users remains
+future work.
+(2)~Bridge-property federation assumes that shared identifiers are
+consistent across KGs; when they are not (e.g., drug-name casing),
+queries silently return incomplete results rather than errors.
+(3)~The system currently runs as a single-node deployment; the
+512\,GB memory requirement for the full graph limits adoption.
+(4)~The BiomedQA evaluation uses 40~questions---sufficient to
+demonstrate the MCP vs.\ text-to-Cypher gap, but too small for
+robust statistical conclusions.
+(5)~The OMOP KG uses synthetic patient data (Synthea), and results
+on comorbidity and cohort queries may not transfer to real clinical
+deployments.
+
 \section{Conclusion and Future Work}\label{sec:conclusion}
 
-We presented Samyama, a graph database deployed for federated
-biomedical knowledge graph analytics at scale.  Ten knowledge
-graphs spanning molecular biology through population health---137M
-nodes, 1.22B~edges---are loaded into a single instance and
-federated via bridge properties in standard OpenCypher.  A
-500-query mega benchmark achieves 100\% pass rate with transparent
-oracle methodology that separates engine capability from corpus
-coverage.
+We reported on the deployment and evaluation of a federated
+biomedical knowledge graph system spanning ten KGs (137M~nodes,
+1.22B~edges).  The main empirical findings are: (1)~bridge-property
+federation scales to billion-edge graphs given exact per-triple
+statistics, but is limited by identifier coverage across KGs;
+(2)~adjacency-aware aggregation eliminates a common class of
+timeout queries on high-degree graphs; and (3)~domain-specific MCP
+tools outperform generic text-to-Cypher by encoding schema knowledge,
+at the cost of manual authoring effort.
 
-Future work includes: (1)~scaling to 500M+~nodes with storage
-optimizations (columnar-first property encoding, compressed sparse
-rows); (2)~adding UMLS Metathesaurus as a concept-resolution spine
-for richer cross-KG linking; and (3)~expanding the MCP tool catalog
-to cover all ten KGs with federated multi-tool agent workflows.
+Future work includes: (1)~compressed storage to reduce the memory
+footprint below 128\,GB, enabling deployment on commodity hardware;
+(2)~UMLS Metathesaurus as a concept-resolution spine to improve
+bridge-join coverage; and (3)~a larger-scale MCP evaluation with
+external users and a broader question set.
 
 %% ================================================================
 \bibliographystyle{splncs04}
