@@ -1,66 +1,108 @@
 #!/usr/bin/env bash
-# B3 — Samyama vs Neo4j head-to-head runner
-#
-# Prerequisites on the AWS instance:
-#   - Samyama built at ~/samyama-graph-enterprise/target/release/
-#   - Neo4j 5.x Community installed and running on bolt://localhost:7687
-#   - cypher-shell available in PATH
-#   - PW + DI + CT snapshots in ~/data/{pathways,druginteractions,clinical-trials}.sgsnap
-#   - This directory containing b3_subset_queries.csv
-#
-# Output: results.csv with columns id,kg,system,latency_ms,row_count,status
+# B3 — Samyama vs Neo4j head-to-head runner.
+# Run inside b3-neo4j-baseline/ directory on the AWS VM.
 
 set -euo pipefail
 
-QUERIES=$(dirname "$0")/b3_subset_queries.csv
-OUT=$(dirname "$0")/results.csv
-SAMYAMA_BIN=${SAMYAMA_BIN:-$HOME/samyama-graph-enterprise/target/release/examples/unified_benchmark}
-NEO4J_USER=${NEO4J_USER:-neo4j}
-NEO4J_PASS=${NEO4J_PASS:-samyama-baseline}
+DIR=$(cd "$(dirname "$0")" && pwd)
+QUERIES="$DIR/b3_subset_queries.csv"
+OUT="$DIR/results.csv"
+SAMYAMA_BIN="${SAMYAMA_BIN:-$HOME/samyama-graph/target/release/examples/b3_runner}"
+SAMYAMA_OUT="$DIR/samyama_results.csv"
+NEO4J_USER="${NEO4J_USER:-neo4j}"
+NEO4J_PASS="${NEO4J_PASS:-samyama-baseline}"
 
-echo "id,kg,system,latency_ms,row_count,status" > "$OUT"
+if [ ! -x "$SAMYAMA_BIN" ]; then
+  echo "ERROR: $SAMYAMA_BIN not built" >&2
+  exit 1
+fi
+if ! command -v cypher-shell >/dev/null 2>&1; then
+  echo "ERROR: cypher-shell not found in PATH" >&2
+  exit 1
+fi
 
-# --- Samyama: use unified_benchmark with --queries override pointing to subset ---
+# ── Samyama side ──
 echo "[run] Samyama subset run..."
-SAMYAMA_OUT=$(mktemp)
 "$SAMYAMA_BIN" \
-    --snapshots pathways,druginteractions,clinical-trials \
+    --snapshots "$HOME/data/pathways.sgsnap,$HOME/data/druginteractions.sgsnap,$HOME/data/clinical-trials.sgsnap" \
     --queries "$QUERIES" \
     --csv "$SAMYAMA_OUT" \
-    --warm-runs 1 --measured-runs 3
-# Expected output schema: id,name,kg,latency_us,row_count,status
-awk -F, 'NR>1 { printf("%s,%s,samyama,%.3f,%s,%s\n", $1, $3, $4/1000, $5, $6) }' "$SAMYAMA_OUT" >> "$OUT"
+    --warm 1 --runs 3
 
-# --- Neo4j: pipe each query through cypher-shell, time it, capture row count ---
+# ── Neo4j side ──
 echo "[run] Neo4j subset run..."
-tail -n +2 "$QUERIES" | while IFS=, read -r id name kg category hops cypher_quoted; do
-    # Strip surrounding quotes from cypher field
-    cypher=$(echo "$cypher_quoted" | sed -E 's/^"//; s/"$//; s/""/"/g')
+NEO4J_OUT="$DIR/neo4j_results.csv"
+echo "id,kg,system,latency_ms,row_count,status" > "$NEO4J_OUT"
 
-    # Warm-up run (discard)
-    cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASS" --format plain "$cypher" > /dev/null 2>&1 || true
+# Read queries with python to handle CSV quoting properly
+export QUERIES NEO4J_USER NEO4J_PASS
+python3 <<'PYEOF' >> "$NEO4J_OUT"
+import csv, subprocess, time, os, sys
 
-    # Timed runs — take median of 3
-    latencies=()
-    rows=0
-    status="pass"
-    for i in 1 2 3; do
-        start=$(python3 -c 'import time; print(int(time.time()*1000))')
-        out=$(cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASS" --format plain "$cypher" 2>&1) || status="error"
-        end=$(python3 -c 'import time; print(int(time.time()*1000))')
-        latencies+=($((end - start)))
-        if [ $i -eq 1 ]; then
-            rows=$(echo "$out" | wc -l | awk '{print $1 - 1}') # subtract header line
-            [ "$rows" -lt 0 ] && rows=0
-            [ "$rows" -eq 0 ] && [ "$status" = "pass" ] && status="empty"
-        fi
-    done
-    median=$(printf '%s\n' "${latencies[@]}" | sort -n | awk 'NR==2')
-    echo "$id,$kg,neo4j,$median,$rows,$status" >> "$OUT"
-done
+queries_path = os.environ.get('QUERIES')
+neo4j_user = os.environ.get('NEO4J_USER', 'neo4j')
+neo4j_pass = os.environ.get('NEO4J_PASS', 'samyama-baseline')
 
-echo "[run] Done. Results in $OUT"
-echo
-echo "Summary:"
+with open(queries_path) as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        qid = row['id']
+        kg = row['kg']
+        cypher = row['cypher']
+
+        # Warm-up (discard)
+        try:
+            subprocess.run(
+                ['cypher-shell', '-u', neo4j_user, '-p', neo4j_pass, '--format', 'plain', cypher],
+                capture_output=True, timeout=120, check=False
+            )
+        except subprocess.TimeoutExpired:
+            pass
+
+        latencies = []
+        rows = 0
+        status = 'pass'
+        for i in range(3):
+            start = time.perf_counter()
+            try:
+                result = subprocess.run(
+                    ['cypher-shell', '-u', neo4j_user, '-p', neo4j_pass, '--format', 'plain', cypher],
+                    capture_output=True, text=True, timeout=120, check=False
+                )
+            except subprocess.TimeoutExpired:
+                latencies.append(120000.0)
+                status = 'timeout'
+                break
+
+            dt_ms = (time.perf_counter() - start) * 1000
+            latencies.append(dt_ms)
+
+            if result.returncode != 0:
+                status = 'error'
+                break
+            if i == 0:
+                # Count output lines minus header
+                lines = result.stdout.strip().split('\n')
+                rows = max(0, len(lines) - 1)
+
+        if status == 'pass' and rows == 0:
+            status = 'empty'
+
+        latencies.sort()
+        median = latencies[len(latencies) // 2] if latencies else -1
+        # CSV-safe error message
+        err_safe = status.replace(',', ';').replace('\n', ' ')
+        print(f"{qid},{kg},neo4j,{median:.3f},{rows},{err_safe}")
+        sys.stdout.flush()
+PYEOF
+
+# ── Combine into results.csv ──
+echo "id,kg,system,latency_ms,row_count,status" > "$OUT"
+tail -n +2 "$SAMYAMA_OUT" >> "$OUT"
+tail -n +2 "$NEO4J_OUT" >> "$OUT"
+
+echo "[run] Done. Combined results in $OUT"
+echo "[run] Summary:"
 awk -F, 'NR>1 { c[$3]++; if ($6=="pass") p[$3]++; sum[$3]+=$4 }
-         END { for (s in c) printf("  %-10s pass=%d/%d  median_total=%.0fms\n", s, p[s], c[s], sum[s]) }' "$OUT"
+         END { for (s in c) printf("  %-10s pass=%d/%d  total_median=%.0fms  avg=%.1fms\n",
+                                    s, p[s], c[s], sum[s], sum[s]/c[s]) }' "$OUT"
