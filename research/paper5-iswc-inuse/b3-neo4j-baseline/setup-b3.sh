@@ -45,17 +45,21 @@ cd ~/samyama-graph
 cargo build --release --example samyama_to_neo4j 2>&1 | tail -3
 
 # ── 5. Convert each snapshot → Neo4j CSV ──
+# Each snapshot uses its own NodeId space starting from 1; merging them into
+# a single Neo4j graph would collide. Apply per-KG ID offsets.
 echo "[setup] Converting snapshots..."
 mkdir -p ~/neo4j-csvs
+declare -A OFFSETS=( [pathways]=0 [druginteractions]=10000000 [clinical-trials]=20000000 )
 for kg in pathways druginteractions clinical-trials; do
   out=~/neo4j-csvs/${kg}
-  if [ -d "$out" ] && [ "$(ls -A $out 2>/dev/null | wc -l)" -gt 0 ]; then
-    echo "[setup]   $kg already converted, skipping"
-    continue
-  fi
+  rm -rf "$out"  # force regenerate with offsets
   mkdir -p "$out"
-  ~/samyama-graph/target/release/examples/samyama_to_neo4j ~/data/${kg}.sgsnap "$out" 2>&1 | tail -3
+  ~/samyama-graph/target/release/examples/samyama_to_neo4j ~/data/${kg}.sgsnap "$out" "${OFFSETS[$kg]}" 2>&1 | tail -3
 done
+# Make CSVs readable by neo4j user
+chmod 755 /home/ubuntu /home/ubuntu/neo4j-csvs
+find /home/ubuntu/neo4j-csvs -type d -exec chmod 755 {} \;
+find /home/ubuntu/neo4j-csvs -type f -exec chmod 644 {} \;
 
 # ── 6. Import into Neo4j (single merged DB for the comparison) ──
 sudo systemctl stop neo4j
@@ -67,7 +71,8 @@ sudo -u neo4j neo4j-admin database import full neo4j \
     --skip-bad-relationships=true \
     --skip-duplicate-nodes=true \
     --id-type=INTEGER \
-    $NODE_ARGS $REL_ARGS 2>&1 | tail -10
+    --report-file=/var/lib/neo4j/import.report \
+    $NODE_ARGS $REL_ARGS 2>&1 | tail -25
 
 sudo systemctl start neo4j
 echo "[setup] Waiting for Neo4j..."
