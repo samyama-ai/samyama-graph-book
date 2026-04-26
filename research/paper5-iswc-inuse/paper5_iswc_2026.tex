@@ -65,11 +65,9 @@ attributable to schema knowledge encoded in the templates, not to
 model capability.
 
 The system, Samyama, achieves 500/500 on the benchmark (468~full
-passes, 32~documented corpus-coverage gaps), runs on a single
-\$1.50/hr AWS spot instance, and has been in continuous use for
-biomedical analytics since late 2025.  We discuss the design
-trade-offs, limitations, and failure modes encountered during
-deployment.
+passes, 32~documented corpus-coverage gaps) and runs on a single
+AWS spot instance.  We discuss the design trade-offs, limitations,
+and failure modes encountered during development and evaluation.
 
 \keywords{Knowledge graphs \and Biomedical data integration \and
   Graph databases \and OpenCypher \and Federation \and
@@ -98,9 +96,10 @@ joining across at least four databases with ad-hoc scripting,
 identifier reconciliation, and no transactional guarantees.
 
 This paper reports on the design, deployment, and evaluation of
-Samyama, a graph database used since late 2025 for federated
-biomedical knowledge graph analytics.  Our contributions are
-empirical findings from building and operating this system:
+Samyama, a graph database for federated biomedical knowledge graph
+analytics in active use within our research group.  Our
+contributions are empirical findings from building and operating
+this system:
 
 \begin{enumerate}
 \item \textbf{Bridge-property federation scales to $10^9$~edges}
@@ -481,6 +480,25 @@ aggregations, path queries, \texttt{OPTIONAL MATCH},
 \texttt{EXISTS} subqueries, \texttt{CASE} expressions, and
 \texttt{UNION} across KGs.
 
+\smallskip\noindent\textbf{Query provenance.}
+The 500 queries were designed to provide systematic coverage along
+three axes: (i)~\emph{per-KG coverage}---each KG receives 10--35
+queries spanning point lookups, aggregations, and path traversals;
+(ii)~\emph{cross-KG federation}---55 queries (XK, PH, MB prefixes)
+exercise pairwise and three-way joins via bridge properties;
+(iii)~\emph{Cypher feature stress tests}---60 expanded queries (EX
+prefix) target specific features such as \texttt{OPTIONAL MATCH},
+variable-length paths, and complex aggregations.  Question stems
+were drawn from published biomedical research patterns where
+available (e.g., FAERS pharmacovigilance signal queries follow the
+disproportionality-analysis literature; OMOP cohort queries follow
+OHDSI~\cite{hripcsak2015omop} reference templates).
+We acknowledge that the queries were authored by the system
+developers, which creates a risk of co-adaptation between queries
+and engine capabilities; we discuss this in
+Section~\ref{sec:limitations} and release the full query set for
+independent validation.
+
 \smallskip\noindent\textbf{Oracle methodology.}
 A key contribution of our evaluation is the \emph{expected-rows
 oracle}---a YAML file that records the expected row count for each
@@ -711,14 +729,32 @@ found that the 39~tools cover ${\sim}85\%$ of questions asked by
 collaborating researchers; the remaining 15\% require ad-hoc Cypher
 or new tool authoring.
 
+\smallskip\noindent\textbf{Relation to commercial agent frameworks.}
+Several commercial frameworks expose graph databases to LLM
+agents---LangChain's Neo4j integration, LlamaIndex's property-graph
+loaders, ChatGPT plugins for Neo4j Aura.  These frameworks
+predominantly rely on \emph{schema introspection plus generic
+text-to-Cypher} and therefore inherit its accuracy ceiling on
+domain queries.  The closest related approach is Neo4j's GDS
+Agent~\cite{neo4j2025gdsagent}, which uses tool-centric access for
+graph algorithmic reasoning (PageRank, community detection, etc.).
+Our work differs in two ways: (i)~the tool surface is
+\emph{domain-specific}, encoding biomedical schema knowledge rather
+than generic graph algorithms, and (ii)~the evaluation targets
+factual question-answering over heterogeneous KGs rather than
+algorithmic queries on a single graph.  A complementary study on a
+139-question industrial benchmark (AssetOpsBench) shows the same
+tool-granularity effect---99\% accuracy for domain-specific MCP
+tools versus 83\% for text-to-Cypher---suggesting the finding
+generalizes beyond biomedicine.
+
 %% ================================================================
 \section{Deployment and Lessons Learned}\label{sec:deployment}
 
 \subsection{Deployment Context}
 
-The system has been in continuous use since November 2025 for
-internal biomedical analytics and collaboration with research
-partners.  Two deployment configurations are maintained:
+The system is in active use within our research group for internal
+biomedical analytics.  Two deployment configurations are maintained:
 
 \begin{itemize}
 \item \textbf{Development}: Apple M4 Mac Mini (16\,GB RAM),
@@ -835,6 +871,15 @@ enumeration, and \texttt{ExpandInto}---optimizations that exploit
 adjacency-list structure unavailable in relational-backed engines;
 (3)~\emph{single-binary deployment} with graph storage, RESP
 protocol, and MCP server in one process.
+A natural objection is that an OpenCypher front-end on top of
+Neo4j could provide the same federation interface.  This works for
+query syntax but not for the underlying performance characteristics:
+Neo4j's planner uses sampled statistics that miss the long-tail
+degree distributions found in PubMed and OMOP, its multi-database
+isolation is an Enterprise feature requiring separate deployments
+per KG (defeating single-instance federation), and adjacency-aware
+aggregation cannot be expressed as a Cypher rewrite---it requires
+direct access to adjacency-list metadata at the storage layer.
 Conversely, Neo4j offers a mature ecosystem (APOC procedures,
 Graph Data Science library, Bloom visualization) that Samyama
 lacks, and its query optimizer handles a broader set of Cypher
@@ -856,6 +901,23 @@ typically queried via SQL on relational databases.  Our OMOP KG
 represents the same data as a property graph, enabling
 graph-native cohort queries and cross-KG joins with clinical
 trials and drug interactions.
+
+%% ================================================================
+\section{Reproducibility}\label{sec:reproducibility}
+
+The Samyama engine source code, benchmark queries, expected-rows
+oracle, KG snapshots, and MCP tool definitions are released under
+open-source licenses.  The 500 benchmark queries are available as
+a YAML file in the project repository, paired with the oracle that
+records expected row counts and documented data-dependent gaps.
+Reproducing the full evaluation requires an instance with at least
+512\,GB RAM (we used AWS r7i.16xlarge); the seven-KG subset (PubMed
+excluded) reproduces on a 16\,GB workstation.  Snapshot files
+(\texttt{.sgsnap} format) and a runner script
+(\texttt{unified\_benchmark.rs}) are included to enable a
+single-command rerun.  The 40~BiomedQA questions and 39~MCP tool
+definitions are likewise public.  Repository:
+\url{https://github.com/samyama-ai}.
 
 %% ================================================================
 \section{Limitations}\label{sec:limitations}
@@ -976,6 +1038,12 @@ IEEE TKDE \textbf{36}(7), 3580--3599 (2024)
 \bibitem{anthropic2024mcp}
 Anthropic: Model {Context Protocol} specification.
 \url{https://modelcontextprotocol.io} (2024)
+
+\bibitem{neo4j2025gdsagent}
+Neo4j Research:
+{GDS Agent}: Graph Data Science Agent for Algorithmic Reasoning over
+Property Graphs.
+arXiv:2508.20637 (2025)
 
 \end{thebibliography}
 
