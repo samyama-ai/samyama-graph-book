@@ -42,7 +42,7 @@ done
 # ── 4. Build Samyama (OSS) ──
 echo "[setup] Building Samyama OSS examples..."
 cd ~/samyama-graph
-cargo build --release --example samyama_to_neo4j 2>&1 | tail -3
+cargo build --release --example samyama_to_neo4j --example b3_runner 2>&1 | tail -3
 
 # ── 5. Convert each snapshot → Neo4j CSV ──
 # Each snapshot uses its own NodeId space starting from 1; merging them into
