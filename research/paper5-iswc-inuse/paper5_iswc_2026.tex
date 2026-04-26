@@ -150,15 +150,48 @@ on demand via $O(1)$ hash-map lookup; the \texttt{ExpandOperator}
 returns \texttt{(EdgeId, NodeId, NodeId, \&EdgeType)} tuples without
 copying edge properties.
 
-\smallskip\noindent\textbf{Trade-off.}
-Late materialization reduces peak memory allocation by ${\sim}60\%$
-on 100K-node benchmarks compared to eager materialization (measured
-by toggling the resolve strategy in the same codebase).  The cost is
-an additional indirection per property access in \texttt{WHERE}
-filters---negligible for selective queries but measurable on
-full-scan aggregations where every node's properties are accessed
-regardless.  For \texttt{LIMIT}~$k$ queries the benefit is
-unambiguous: only $k$ nodes are ever materialized.
+\smallskip\noindent\textbf{Measured impact.}
+We quantify the late-materialization benefit on a synthetic
+10K-node, 50K-edge graph (5 outgoing edges per node, three
+properties per node) using a Criterion micro-benchmark
+(Table~\ref{tab:latemat}).  Two contrasts are informative.
+At the storage API level, traversing edges via the lightweight
+\texttt{get\_outgoing\_edge\_targets} (which returns \texttt{(EdgeId,
+NodeId, NodeId, \&EdgeType)} tuples) is 17.5\% faster than
+\texttt{get\_outgoing\_edges} (which clones full \texttt{Edge}
+objects).  At the Cypher level, returning a single property
+(\texttt{RETURN n.name}) is 20\% faster than returning the full
+node (\texttt{RETURN n}, which forces materialization of all
+properties at the project step).
+
+\begin{table}[t]
+\centering
+\caption{Late-materialization micro-benchmark on a 10K-node,
+  50K-edge graph (Apple~M4, 16\,GB RAM, single-threaded).
+  Each Cypher row is mean of 100 iterations.}
+\label{tab:latemat}
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Workload} & \textbf{Eager} & \textbf{Lazy} & \textbf{Speedup} \\
+\midrule
+Raw 3-hop traversal (per query)
+  & 27.28\,$\mu$s & 22.50\,$\mu$s & 1.21$\times$ \\
+Cypher \texttt{RETURN n} vs \texttt{n.name} (1000 nodes)
+  &  2.78\,ms & 2.23\,ms & 1.25$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Trade-off.}
+The cost of late materialization is an additional indirection per
+property access in \texttt{WHERE} filters---negligible for selective
+queries but measurable on full-scan aggregations where every node's
+properties are accessed regardless.  For \texttt{LIMIT}~$k$ queries
+the benefit is unambiguous: only $k$ nodes are ever fully
+materialized.  Quantifying the peak-memory benefit (rather than just
+latency) requires an eager-materialization mode that the engine
+does not currently expose; we leave this to future work.
 
 \subsection{Graph-Native Planner}\label{sec:planner}
 
