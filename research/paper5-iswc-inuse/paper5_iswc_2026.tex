@@ -650,6 +650,28 @@ directly in adjacency lists rather than duplicated in a separate
 arena---reducing the per-edge memory footprint by ${\sim}40\%$
 compared to a dual-store design.
 
+\subsection{Comparison with Neo4j Community Edition}\label{sec:neo4j-baseline}
+
+To address the question ``could Neo4j replace this system?'', we
+ran a 55-query subset (15~PW + 15~DI + 20~CT + 5~cross-KG) on both
+systems using a merged 3-KG graph (${\sim}$8M nodes, 28M edges) on
+an r7i.2xlarge spot instance.  Property indexes on join keys were
+created in both systems; Neo4j queries used the official Bolt
+driver (no per-query JVM startup).  Pass rates were comparable
+(Samyama 50/55 vs.\ Neo4j 49/55), confirming semantic equivalence.
+On raw latency, however, Neo4j won 47/55 queries; Samyama won 2;
+6 were within 1.5$\times$.  Neo4j's mature query optimizer and
+B-tree indexes make it highly effective at this scale.
+
+The comparison does not exercise the system's two main design
+contributions: (i)~\emph{multi-tenant federation} requires Neo4j
+Enterprise + Fabric, which is out of scope; (ii)~\emph{adjacency-aware
+aggregation on billion-edge graphs} targets PubMed's 1.04B~edges,
+100$\times$ larger than the merged subset.  At the 8M-node scale
+Neo4j Community is the better-engineered choice; the case for our
+system rests on the federation architecture and headroom at
+billion-edge scale.
+
 %% ================================================================
 \section{MCP-Based AI-Agent Integration}\label{sec:mcp}
 
@@ -938,58 +960,44 @@ trials and drug interactions.
 %% ================================================================
 \section{Reproducibility}\label{sec:reproducibility}
 
-The Samyama engine source code, benchmark queries, expected-rows
-oracle, KG snapshots, and MCP tool definitions are released under
-open-source licenses.  The 500 benchmark queries are available as
-a YAML file in the project repository, paired with the oracle that
-records expected row counts and documented data-dependent gaps.
-Reproducing the full evaluation requires an instance with at least
-512\,GB RAM (we used AWS r7i.16xlarge); the seven-KG subset (PubMed
-excluded) reproduces on a 16\,GB workstation.  Snapshot files
-(\texttt{.sgsnap} format) and a runner script
-(\texttt{unified\_benchmark.rs}) are included to enable a
-single-command rerun.  The 40~BiomedQA questions and 39~MCP tool
-definitions are likewise public.  Repository:
-\url{https://github.com/samyama-ai}.
+Engine source, 500~benchmark queries, expected-rows oracle, KG
+snapshots, BiomedQA questions, MCP tool definitions, and the B3
+runner scripts are open-source at
+\url{https://github.com/samyama-ai}.  Full evaluation requires
+512\,GB~RAM (r7i.16xlarge); the seven-KG subset (PubMed excluded)
+reproduces on a 16\,GB workstation; the Neo4j comparison
+(Section~\ref{sec:neo4j-baseline}) reproduces on r7i.2xlarge.
 
 %% ================================================================
 \section{Limitations}\label{sec:limitations}
 
-Several limitations should be noted.
-(1)~The benchmark queries were authored by the system developers,
-creating a risk of co-adaptation between queries and engine
-capabilities.  We mitigate this by publishing the full query set
-and oracle, but independent validation by external users remains
-future work.
-(2)~Bridge-property federation assumes that shared identifiers are
-consistent across KGs; when they are not (e.g., drug-name casing),
-queries silently return incomplete results rather than errors.
-(3)~The system currently runs as a single-node deployment; the
-512\,GB memory requirement for the full graph limits adoption.
-(4)~The BiomedQA evaluation uses 40~questions---sufficient to
-demonstrate the MCP vs.\ text-to-Cypher gap, but too small for
-robust statistical conclusions.
-(5)~The OMOP KG uses synthetic patient data (Synthea), and results
-on comorbidity and cohort queries may not transfer to real clinical
-deployments.
+Six limitations bear emphasis.
+(1)~Benchmark queries were author-written, risking co-adaptation
+between queries and engine capabilities; we publish the full
+query set and oracle for independent validation.
+(2)~Bridge-property federation silently undercounts when shared
+identifiers diverge across KGs (e.g., drug-name casing).
+(3)~The full graph requires 512\,GB~RAM, limiting adoption.
+(4)~The 40-question BiomedQA evaluation is too small for robust
+statistical conclusions.
+(5)~The OMOP KG uses Synthea-generated patients, not real
+clinical records.
+(6)~The Neo4j comparison is restricted to a 3-KG subset because
+Neo4j Community lacks multi-database federation.
 
 \section{Conclusion and Future Work}\label{sec:conclusion}
 
-We reported on the deployment and evaluation of a federated
-biomedical knowledge graph system spanning ten KGs (137M~nodes,
-1.22B~edges).  The main empirical findings are: (1)~bridge-property
-federation scales to billion-edge graphs given exact per-triple
-statistics, but is limited by identifier coverage across KGs;
-(2)~adjacency-aware aggregation eliminates a common class of
-timeout queries on high-degree graphs; and (3)~domain-specific MCP
-tools outperform generic text-to-Cypher by encoding schema knowledge,
-at the cost of manual authoring effort.
-
-Future work includes: (1)~compressed storage to reduce the memory
-footprint below 128\,GB, enabling deployment on commodity hardware;
-(2)~UMLS Metathesaurus as a concept-resolution spine to improve
-bridge-join coverage; and (3)~a larger-scale MCP evaluation with
-external users and a broader question set.
+We reported on a federated biomedical knowledge graph system
+spanning ten KGs (137M~nodes, 1.22B~edges) and three empirical
+findings: (1)~bridge-property federation scales to billion-edge
+graphs given exact per-triple statistics, bounded by identifier
+coverage across KGs; (2)~adjacency-aware aggregation eliminates a
+common class of timeout queries on high-degree graphs; and
+(3)~domain-specific MCP tools outperform generic text-to-Cypher by
+encoding schema knowledge, at the cost of manual authoring effort.
+Future work includes compressed storage (target $<$128\,GB),
+UMLS-based concept resolution to improve bridge coverage, and a
+larger-scale MCP evaluation with external users.
 
 %% ================================================================
 \bibliographystyle{splncs04}
