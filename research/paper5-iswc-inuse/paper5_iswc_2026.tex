@@ -660,44 +660,29 @@ created in both systems; Neo4j queries used the official Bolt
 driver (no per-query JVM startup).  Pass rates were comparable
 (Samyama 50/55 vs.\ Neo4j 49/55), confirming semantic equivalence.
 
-\paragraph{Initial result and the iteration that followed.}
-The first head-to-head, run on Samyama v0.10.4.5, found Neo4j faster
-on the majority of queries despite a near-identical pass rate.
-That negative result drove a focused engineering iteration on the
-query executor: a lazy node-scan with conditional sort
-(preserves cache locality on full scans, skips it under
-\texttt{LIMIT}); a hybrid \texttt{COUNT(DISTINCT)} that fast-paths
-on node/edge ids before falling back to a property set; pushing
-the \texttt{GROUP\,BY} accumulator \emph{into} the
-adjacency-count operator (rather than running a post-aggregate
-hash-group) for both Phase~1 and the WITH-binding shape; and a
-correctness fix in property resolution---the in-operator
-GROUP\,BY initially looked up properties in the in-memory node
-map, which is empty for snapshot-imported data because
-properties are stored columnarly.  Switching to the canonical
-\texttt{resolve\_property} accessor (columnar-first) restored
-correct row counts on the WITH-binding shape without measurable
-overhead.
+The first head-to-head, on Samyama v0.10.4.5, found Neo4j faster
+on most queries.  That negative result drove a focused executor
+iteration: lazy node-scan with conditional sort, hybrid
+\texttt{COUNT(DISTINCT)}, and pushing the \texttt{GROUP\,BY}
+accumulator \emph{into} the adjacency-count operator (rather than
+running a post-aggregate hash-group) for both Phase~1 and the
+WITH-binding shape.  A subtle correctness fix surfaced during
+the latter: the in-operator GROUP\,BY initially read properties
+from the in-memory node map, which is empty for snapshot-imported
+data because properties are stored columnarly; switching to the
+canonical \texttt{resolve\_property} accessor (columnar-first)
+restored correct row counts without measurable overhead.
 
-\paragraph{Re-measured.}  After these iterations Samyama runs the
-same 55-query subset in \textbf{35.6~s} vs.\ Neo4j's
-\textbf{60.8~s}---\textbf{1.71$\times$} faster overall.
-Per-query, Samyama wins 47/55 by a margin of $>$1.5$\times$,
-Neo4j wins 5, and 3 are within 1.5$\times$.  Pass count is
-unchanged (50/55), and the same five queries that don't apply
-under either oracle remain unchanged across versions.
-
-We retain this honest characterization rather than reporting only
-the post-tuning number: the original gap was real, the
-intermediate steps included a wrong-fast version (silently
-incorrect on the WITH-binding shape on snapshot data, fixed
-before any number reported here), and the comparison still does
-not exercise the system's two main design contributions:
-(i)~\emph{multi-tenant federation}, which would require Neo4j
-Enterprise~+ Fabric and is out of scope; and
-(ii)~\emph{adjacency-aware aggregation at billion-edge scale},
-where PubMed's 1.04B~edges sit 100$\times$ above the merged
-subset used here.
+After these iterations Samyama runs the subset in
+\textbf{35.6~s} vs.\ Neo4j's \textbf{60.8~s}---\textbf{1.71$\times$}
+faster overall, with 47/55 wins ($>$1.5$\times$ margin), 5
+losses, and pass count unchanged at 50/55.  We retain this
+two-act framing because one intermediate version was wrong-fast
+on the WITH-binding shape (fixed before any number above).
+The comparison still does not exercise the system's two main
+contributions, multi-tenant federation and adjacency-aware
+aggregation at billion-edge scale (PubMed's 1.04B~edges sit
+100$\times$ above this subset).
 
 %% ================================================================
 \section{MCP-Based AI-Agent Integration}\label{sec:mcp}
@@ -1014,17 +999,15 @@ Neo4j Community lacks multi-database federation.
 
 \section{Conclusion and Future Work}\label{sec:conclusion}
 
-We reported on a federated biomedical knowledge graph system
-spanning ten KGs (137M~nodes, 1.22B~edges) and three empirical
-findings: (1)~bridge-property federation scales to billion-edge
-graphs given exact per-triple statistics, bounded by identifier
-coverage across KGs; (2)~adjacency-aware aggregation eliminates a
-common class of timeout queries on high-degree graphs; and
-(3)~domain-specific MCP tools outperform generic text-to-Cypher by
-encoding schema knowledge, at the cost of manual authoring effort.
-Future work includes compressed storage (target $<$128\,GB),
-UMLS-based concept resolution to improve bridge coverage, and a
-larger-scale MCP evaluation with external users.
+We reported on a federated biomedical KG system spanning ten KGs
+(137M~nodes, 1.22B~edges) and three findings: (1)~bridge-property
+federation scales to billion-edge graphs given exact per-triple
+statistics, bounded by identifier coverage; (2)~adjacency-aware
+aggregation eliminates a common class of timeout queries on
+high-degree graphs; and (3)~domain-specific MCP tools outperform
+generic text-to-Cypher by encoding schema knowledge.  Future work
+includes compressed storage ($<$128\,GB), UMLS-based concept
+resolution, and larger-scale MCP evaluation.
 
 %% ================================================================
 \bibliographystyle{splncs04}
