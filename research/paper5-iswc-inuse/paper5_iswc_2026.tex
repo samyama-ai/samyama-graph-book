@@ -670,10 +670,12 @@ to a per-group neighbor \texttt{HashSet} and the
 aggregate-then-expand chain (\texttt{MATCH \dots\ WITH count
 \dots\ MATCH \dots\ RETURN}) lowered to a single physical
 pipeline.  The remaining 1.5$\times$ gap on the totals is
-distributed across many small-result queries where Bolt's
-prepared-statement layer outperforms our per-query SDK
-overhead; we expect a query-level prepared-plan API to close
-this on a future iteration.
+concentrated in four cross-KG queries that use case-insensitive
+joins (\texttt{WHERE toLower(d.name) = toLower(i.name)}) which no
+index can serve and the scan re-lowercases on every probe;
+pre-computing a normalised property at ETL time, or adding
+function-index support to the engine, would close this gap
+directly.
 
 At the 8M-node scale Neo4j Community is the better-engineered
 choice; the case for our system rests on capabilities the
