@@ -31,7 +31,7 @@ INST=$(aws ec2 run-instances --region "$AWS_REGION" \
   --placement "AvailabilityZone=$AZ" \
   --key-name "$KEY_NAME" \
   --security-group-ids "$SG_ID" \
-  --instance-market-options '{"MarketType":"spot","SpotOptions":{"SpotInstanceType":"persistent","InstanceInterruptionBehavior":"stop"}}' \
+  --instance-market-options '{"MarketType":"spot","SpotOptions":{"SpotInstanceType":"one-time"}}' \
   --block-device-mappings "[{\"DeviceName\":\"/dev/sda1\",\"Ebs\":{\"VolumeSize\":${DISK_GB},\"VolumeType\":\"gp3\"}}]" \
   --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=samyama-b3-baseline}]' \
   --query 'Instances[0].InstanceId' --output text)
