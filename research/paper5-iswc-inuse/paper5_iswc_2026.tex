@@ -660,13 +660,16 @@ both systems.  Pass rates were comparable (Samyama 50/55 vs.\ Neo4j
 49/55), confirming semantic equivalence on this subset.
 
 Using the official Bolt driver for Neo4j and the embedded API for
-Samyama, Neo4j runs the subset in \textbf{8.1~s} vs.\ Samyama's
-\textbf{35.6~s} (4.4$\times$ faster overall) on this 8M-node graph,
-winning 38/38 plain-shape queries and 10/17 adjacency-aware
-aggregation queries.  Samyama wins one adj-agg query and ties on
-six.  The plain-shape gap is dominated by Samyama's per-query SDK
-overhead (45--85~ms vs.\ Neo4j's 1--3~ms via Bolt) rather than
-planner or executor cost.
+Samyama, Neo4j runs the subset in \textbf{7.8~s} vs.\ Samyama's
+\textbf{34.4~s} (4.4$\times$ faster overall) on this 8M-node graph.
+Per-query, the comparison is more balanced than the totals suggest:
+Samyama wins 20/55, Neo4j wins 29/55, and 6 are within 1.5$\times$.
+The 4.4$\times$ total-time gap is concentrated in four outlier
+adj-agg queries (CT08/10/15/20: 4--9~s each) where Samyama's
+\texttt{count(DISTINCT)} and 2-hop \texttt{WITH} planning still
+trail Neo4j's mature operators.  Outside those four, Samyama is
+within 1.5$\times$ on most queries and faster on the trivial-lookup
+shapes that dominate the long tail.
 
 At the 8M-node scale Neo4j Community is the better-engineered
 choice; the case for our system rests on capabilities the
