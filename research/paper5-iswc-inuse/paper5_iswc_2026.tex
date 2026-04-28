@@ -660,20 +660,16 @@ both systems.  Pass rates were comparable (Samyama 50/55 vs.\ Neo4j
 49/55), confirming semantic equivalence on this subset.
 
 Using the official Bolt driver for Neo4j and the embedded API for
-Samyama, Neo4j runs the subset in \textbf{7.6~s} vs.\ Samyama's
-\textbf{18.7~s} (2.5$\times$ faster overall) on this 8M-node graph.
+Samyama, Neo4j runs the subset in \textbf{9.5~s} vs.\ Samyama's
+\textbf{18.7~s} (2.0$\times$ faster overall) on this 8M-node graph.
 Per-query, Samyama wins 24/55 outright, Neo4j wins 27/55, and 4
-are within 1.5$\times$.  On the adjacency-aware aggregation shapes
-($\S$\ref{sec:adj-agg}) that the optimization targets---including
-the \texttt{count(DISTINCT)} variant lowered to a per-group
-\texttt{HashSet} of neighbor ids---Samyama wins 7 of 17 against
-Neo4j's 8; on the four largest such queries the wins are
-1.4--7.4$\times$.  The remaining gap is concentrated in two
-queries (CT15 and CT20) that fall outside the optimized shape (a
-2-hop chain anchored on a \texttt{WITH}-bound aggregate, and a
-property-filtered count over a high-fan-in label) where Samyama
-still issues the generic plan; both are direct extensions of the
-same operator family.
+are within 1.5$\times$; on the adjacency-aware aggregation shapes
+($\S$\ref{sec:adj-agg}) the score is even (Samyama 7, Neo4j 7,
+3 tied).  The remaining gap is concentrated in a single 2-hop
+query (CT20: chain anchored on a \texttt{WITH}-bound aggregate)
+that falls outside the current optimized shape; Samyama issues
+the generic plan there, and a direct extension of the same
+operator family would close it.
 
 At the 8M-node scale Neo4j Community is the better-engineered
 choice; the case for our system rests on capabilities the
