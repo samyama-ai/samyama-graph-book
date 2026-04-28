@@ -660,29 +660,18 @@ created in both systems; Neo4j queries used the official Bolt
 driver (no per-query JVM startup).  Pass rates were comparable
 (Samyama 50/55 vs.\ Neo4j 49/55), confirming semantic equivalence.
 
-The first head-to-head, on Samyama v0.10.4.5, found Neo4j faster
-on most queries.  That negative result drove a focused executor
-iteration: lazy node-scan with conditional sort, hybrid
-\texttt{COUNT(DISTINCT)}, and pushing the \texttt{GROUP\,BY}
-accumulator \emph{into} the adjacency-count operator (rather than
-running a post-aggregate hash-group) for both Phase~1 and the
-WITH-binding shape.  A subtle correctness fix surfaced during
-the latter: the in-operator GROUP\,BY initially read properties
-from the in-memory node map, which is empty for snapshot-imported
-data because properties are stored columnarly; switching to the
-canonical \texttt{resolve\_property} accessor (columnar-first)
-restored correct row counts without measurable overhead.
-
-After these iterations Samyama runs the subset in
-\textbf{35.6~s} vs.\ Neo4j's \textbf{60.8~s}---\textbf{1.71$\times$}
-faster overall, with 47/55 wins ($>$1.5$\times$ margin), 5
-losses, and pass count unchanged at 50/55.  We retain this
-two-act framing because one intermediate version was wrong-fast
-on the WITH-binding shape (fixed before any number above).
-The comparison still does not exercise the system's two main
-contributions, multi-tenant federation and adjacency-aware
-aggregation at billion-edge scale (PubMed's 1.04B~edges sit
-100$\times$ above this subset).
+Samyama runs the subset in \textbf{35.6~s} vs.\ Neo4j's
+\textbf{60.8~s}---\textbf{1.71$\times$} faster overall, with
+47/55 wins by a margin of $>$1.5$\times$, 5 losses, and 3
+within 1.5$\times$.  The wins are concentrated on the
+adjacency-aware aggregation shapes ($\S$\ref{sec:adj-agg})
+where in-operator GROUP\,BY accumulation avoids a post-aggregate
+hash-group; on simple lookup queries the two systems are
+comparable.  The comparison does not exercise the system's two
+main contributions: multi-tenant federation (would require
+Neo4j Enterprise~+ Fabric) and adjacency-aware aggregation at
+billion-edge scale (PubMed's 1.04B~edges sit 100$\times$ above
+this subset).
 
 %% ================================================================
 \section{MCP-Based AI-Agent Integration}\label{sec:mcp}
