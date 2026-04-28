@@ -659,18 +659,45 @@ an r7i.2xlarge spot instance.  Property indexes on join keys were
 created in both systems; Neo4j queries used the official Bolt
 driver (no per-query JVM startup).  Pass rates were comparable
 (Samyama 50/55 vs.\ Neo4j 49/55), confirming semantic equivalence.
-On raw latency, however, Neo4j won 47/55 queries; Samyama won 2;
-6 were within 1.5$\times$.  Neo4j's mature query optimizer and
-B-tree indexes make it highly effective at this scale.
 
-The comparison does not exercise the system's two main design
-contributions: (i)~\emph{multi-tenant federation} requires Neo4j
-Enterprise + Fabric, which is out of scope; (ii)~\emph{adjacency-aware
-aggregation on billion-edge graphs} targets PubMed's 1.04B~edges,
-100$\times$ larger than the merged subset.  At the 8M-node scale
-Neo4j Community is the better-engineered choice; the case for our
-system rests on the federation architecture and headroom at
-billion-edge scale.
+\paragraph{Initial result and the iteration that followed.}
+The first head-to-head, run on Samyama v0.10.4.5, found Neo4j faster
+on the majority of queries despite a near-identical pass rate.
+That negative result drove a focused engineering iteration on the
+query executor: a lazy node-scan with conditional sort
+(preserves cache locality on full scans, skips it under
+\texttt{LIMIT}); a hybrid \texttt{COUNT(DISTINCT)} that fast-paths
+on node/edge ids before falling back to a property set; pushing
+the \texttt{GROUP\,BY} accumulator \emph{into} the
+adjacency-count operator (rather than running a post-aggregate
+hash-group) for both Phase~1 and the WITH-binding shape; and a
+correctness fix in property resolution---the in-operator
+GROUP\,BY initially looked up properties in the in-memory node
+map, which is empty for snapshot-imported data because
+properties are stored columnarly.  Switching to the canonical
+\texttt{resolve\_property} accessor (columnar-first) restored
+correct row counts on the WITH-binding shape without measurable
+overhead.
+
+\paragraph{Re-measured.}  After these iterations Samyama runs the
+same 55-query subset in \textbf{35.6~s} vs.\ Neo4j's
+\textbf{60.8~s}---\textbf{1.71$\times$} faster overall.
+Per-query, Samyama wins 47/55 by a margin of $>$1.5$\times$,
+Neo4j wins 5, and 3 are within 1.5$\times$.  Pass count is
+unchanged (50/55), and the same five queries that don't apply
+under either oracle remain unchanged across versions.
+
+We retain this honest characterization rather than reporting only
+the post-tuning number: the original gap was real, the
+intermediate steps included a wrong-fast version (silently
+incorrect on the WITH-binding shape on snapshot data, fixed
+before any number reported here), and the comparison still does
+not exercise the system's two main design contributions:
+(i)~\emph{multi-tenant federation}, which would require Neo4j
+Enterprise~+ Fabric and is out of scope; and
+(ii)~\emph{adjacency-aware aggregation at billion-edge scale},
+where PubMed's 1.04B~edges sit 100$\times$ above the merged
+subset used here.
 
 %% ================================================================
 \section{MCP-Based AI-Agent Integration}\label{sec:mcp}
