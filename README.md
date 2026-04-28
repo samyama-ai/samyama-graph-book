@@ -1,37 +1,19 @@
-# Building Samyama: The Architecture of a Modern Rust Graph Database
+# samyama-graph-book has moved
 
-![Language](https://img.shields.io/badge/language-Handlebars-blue)
+The book "Building Samyama: The Architecture of a Modern Rust Graph Database" now lives at:
 
+### → https://graph.samyama.cloud/book
 
-This repository contains the source code for the "Book as Code" project describing the internal architecture of **Samyama-Graph**.
+## Where did the content go?
 
-It is written using `mdBook`.
+| Old location (this repo) | New home |
+|---|---|
+| Book chapters (`src/*.md`, mdBook site) | [graph.samyama.cloud/book](https://graph.samyama.cloud/book) |
+| Paper sources (`research/paperN-*/`, `.tex`, `.pdf`, reproduction scripts, result CSVs) | Private repo `git.samyama.ai/Samyama.ai/samyama-research` (request access) |
+| Per-paper review notes | [`samyama-cloud/wiki/topics/paperN-*.md`](https://git.samyama.ai/Samyama.ai/samyama-cloud) |
 
-## Building the Book
+## This repo
 
-1.  **Install mdBook**:
-    ```bash
-    cargo install mdbook
-    ```
+This repo is kept public-readable as a redirect only. No further commits to book or paper content land here — please use the destinations above.
 
-2.  **Build**:
-    ```bash
-    mdbook build
-    ```
-
-3.  **Serve locally**:
-    ```bash
-    mdbook serve --open
-    ```
-
-## Content Structure
-
-*   **Part I**: Core storage and memory management (RocksDB, MVCC).
-*   **Part II**: Query processing and Algorithms (Volcano/Vectorized, CSR).
-*   **Part III**: Distributed Systems and AI (Raft, HNSW).
-*   **Part IV**: Real-world application.
-
-## License
-
-This book content is licensed under CC-BY-4.0.
-The Samyama Graph code is licensed under Apache 2.0.
+The deploy workflow has been removed; the GitHub Pages site at this URL also redirects to the new home.

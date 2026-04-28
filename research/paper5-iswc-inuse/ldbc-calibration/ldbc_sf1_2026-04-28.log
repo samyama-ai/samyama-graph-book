@@ -1,80 +1,0 @@
-BENCH_PID=61491
-[bench] Community edition — GPU acceleration not available.
-[bench] Build with --features gpu and provide a license for GPU benchmarks.
-LDBC SNB Interactive Benchmark — Samyama v0.5.8
-
-=== Phase 1: Loading Nodes ===
-  Place:                1,460 nodes (5ms)                                       
-  Organisation:         7,955 nodes (24ms)                                      
-  Tag:                 16,080 nodes (37ms)                                      
-  TagClass:                71 nodes (1ms)                                       
-  Person:              10,620 nodes (52ms)                                      
-  Forum:              106,594 nodes (228ms)                                     
-  Post:             1,192,942 nodes (4.7s)                                      
-  Comment:          2,391,707 nodes (9.0s)                                      
-
-=== Phase 1b: Multi-Value Attributes ===
-  Enriched 10,620 persons with email addresses
-  Enriched 10,620 persons with languages
-
-=== Phase 2: Loading Edges ===
-  (skipped 1,454 rows for IS_PART_OF)
-  IS_PART_OF (Place->Place):                        0 edges (1ms)               
-  IS_LOCATED_IN (Org->Place):                   7,955 edges (18ms)              
-  HAS_TYPE (Tag->TagClass):                    16,080 edges (33ms)              
-  (skipped 70 rows for IS_SUBCLASS_OF)
-  IS_SUBCLASS_OF (TagClass->TagClass):              0 edges (0ms)               
-  IS_LOCATED_IN (Person->Place):               10,620 edges (22ms)              
-  KNOWS (Person->Person):                     219,450 edges (701ms)             
-  HAS_INTEREST (Person->Tag):                 246,066 edges (509ms)             
-  STUDY_AT (Person->Org):                       8,562 edges (38ms)              
-  WORK_AT (Person->Org):                       22,766 edges (132ms)             
-  LIKES (Person->Post):                       844,544 edges (3.3s)              
-  LIKES (Person->Comment):                  1,616,891 edges (6.4s)              
-  HAS_MODERATOR (Forum->Person):              106,594 edges (318ms)             
-  HAS_MEMBER (Forum->Person):               3,260,692 edges (12.5s)             
-  HAS_TAG (Forum->Tag):                       342,040 edges (754ms)             
-  CONTAINER_OF (Forum->Post):               1,192,942 edges (4.7s)              
-  HAS_CREATOR (Post->Person):               1,192,942 edges (2.9s)              
-  HAS_TAG (Post->Tag):                        778,511 edges (1.7s)              
-  IS_LOCATED_IN (Post->Place):              1,192,942 edges (2.7s)              
-  HAS_CREATOR (Comment->Person):            2,391,707 edges (11.6s)             
-  HAS_TAG (Comment->Tag):                   2,903,970 edges (6.8s)              
-  IS_LOCATED_IN (Comment->Place):           2,391,707 edges (5.9s)              
-  (skipped 1,197,511 rows for REPLY_OF)
-  REPLY_OF (Comment->Comment):                      0 edges (226ms)             
-  (skipped 1,194,196 rows for REPLY_OF)
-  REPLY_OF (Comment->Post):                         0 edges (223ms)             
-
-Dataset: 3,727,429 nodes, 18,746,981 edges (loaded in 75.7s)
-Runs per query: 5
-
-ID    Name                                Rows         Min      Median         Max  Status
-----  ------------------------------    ------  ----------  ----------  ----------  ------
---- Short Reads ---
-  Running IS1...IS1   Person Profile                         0      21.3ms      22.4ms      26.5ms  OK
-  Running IS2...IS2   Recent Posts by Person                 0      32.6ms      38.2ms      41.3ms  OK
-  Running IS3...IS3   Friends of Person                      0      32.0ms      33.5ms      35.9ms  OK
-  Running IS4...IS4   Post Content                           1       264ms       269ms       358ms  OK
-  Running IS5...IS5   Post Creator                           1       705ms       726ms       745ms  OK
-  Running IS6...IS6   Forum of Post                          1       713ms       726ms       752ms  OK
-  Running IS7...IS7   Replies to Post                        0      6978ms      7208ms      7687ms  OK
-
---- Complex Reads ---
-  Running IC1...IC1   Transitive Friends by Name             0      27.4ms      30.5ms      31.6ms  OK
-  Running IC2...IC2   Recent Friend Posts                    0      30.5ms      31.4ms      32.7ms  OK
-  Running IC3...IC3   Friends in Countries                   0      31.1ms      32.6ms      34.4ms  OK
-  Running IC4...IC4   Popular Tags in Period                 0      30.7ms      30.9ms      31.2ms  OK
-  Running IC5...IC5   New Forum Members                      0      32.2ms      32.9ms      33.6ms  OK
-  Running IC6...IC6   Tag Co-occurrence                      0      31.6ms      32.2ms      32.4ms  OK
-  Running IC7...IC7   Recent Likers                          0      30.7ms      32.6ms      33.5ms  OK
-  Running IC8...IC8   Recent Replies                         0      32.2ms      32.6ms      33.5ms  OK
-  Running IC9...IC9   Recent FoF Posts                       0      30.6ms      31.1ms      31.5ms  OK
-  Running IC10...IC10  Friend Recommendation                  0      2606ms      2665ms      2799ms  OK
-  Running IC11...IC11  Job Referral                           0      31.1ms      32.0ms      33.1ms  OK
-  Running IC12...IC12  Expert Reply                           0      30.3ms      30.7ms      31.8ms  OK
-  Running IC13...IC13  Single Shortest Path                   0      29.6ms      30.2ms      31.5ms  OK
-  Running IC14...IC14  Trusted Connection Paths               0      29.5ms      30.2ms      31.2ms  OK
-
-Summary: 21/21 passed, 0 errors (total benchmark time: 77.5s)
-AST cache: 105 hits, 21 misses
